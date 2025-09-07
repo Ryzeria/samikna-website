@@ -1,0 +1,170 @@
+// Animation variants for Framer Motion
+
+export const fadeIn = (direction, delay) => {
+  return {
+    hidden: {
+      y: direction === 'up' ? 80 : direction === 'down' ? -80 : 0,
+      opacity: 0,
+      x: direction === 'left' ? 80 : direction === 'right' ? -80 : 0,
+    },
+    show: {
+      y: 0,
+      x: 0,
+      opacity: 1,
+      transition: {
+        type: 'tween',
+        duration: 1.2,
+        delay: delay,
+        ease: [0.25, 0.25, 0.25, 0.75],
+      },
+    },
+  };
+};
+
+export const textVariant = (delay) => {
+  return {
+    hidden: {
+      y: -50,
+      opacity: 0,
+    },
+    show: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: 'spring',
+        duration: 1.25,
+        delay: delay,
+      },
+    },
+  };
+};
+
+export const staggerContainer = (staggerChildren, delayChildren) => {
+  return {
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: staggerChildren,
+        delayChildren: delayChildren || 0,
+      },
+    },
+  };
+};
+
+export const slideIn = (direction, type, delay, duration) => {
+  return {
+    hidden: {
+      x: direction === 'left' ? '-100%' : direction === 'right' ? '100%' : 0,
+      y: direction === 'up' ? '100%' : direction === 'down' ? '100%' : 0,
+    },
+    show: {
+      x: 0,
+      y: 0,
+      transition: {
+        type: type,
+        delay: delay,
+        duration: duration,
+        ease: 'easeOut',
+      },
+    },
+  };
+};
+
+export const zoomIn = (delay, duration) => {
+  return {
+    hidden: {
+      scale: 0,
+      opacity: 0,
+    },
+    show: {
+      scale: 1,
+      opacity: 1,
+      transition: {
+        type: 'tween',
+        delay: delay,
+        duration: duration,
+        ease: 'easeOut',
+      },
+    },
+  };
+};
+
+export const bounceIn = (delay) => {
+  return {
+    hidden: {
+      scale: 0.3,
+      opacity: 0,
+    },
+    show: {
+      scale: 1,
+      opacity: 1,
+      transition: {
+        type: 'spring',
+        damping: 12,
+        stiffness: 200,
+        delay: delay,
+      },
+    },
+  };
+};
+
+export const navVariants = {
+  hidden: {
+    opacity: 0,
+    y: -50,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+      damping: 140,
+    },
+  },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 80,
+      delay: 1,
+    },
+  },
+};
+
+export const planetVariants = {
+  hidden: {
+    rotate: 0,
+  },
+  show: {
+    rotate: 360,
+    transition: {
+      type: 'tween',
+      duration: 20,
+      repeat: Infinity,
+      ease: 'linear',
+    },
+  },
+};
+
+export const cardHover = {
+  hover: {
+    y: -10,
+    scale: 1.02,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+    },
+  },
+};
+
+export const buttonHover = {
+  hover: {
+    scale: 1.05,
+    transition: {
+      type: 'spring',
+      stiffness: 400,
+      damping: 10,
+    },
+  },
+  tap: {
+    scale: 0.95,
+  },
+};
