@@ -22,8 +22,11 @@ const SupplyChainManagement = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addFormType, setAddFormType] = useState('item'); // 'item' or 'order'
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [supplyChainData, setSupplyChainData] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -87,7 +90,9 @@ const SupplyChainManagement = () => {
       deliveredToday: 0,
       qualityScore: 94.2,
       onTimeDelivery: 92.3,
-      costSavings: 15.7
+      costSavings: 15.7,
+      lowStockItems: 0,
+      outOfStockItems: 0
     },
     inventory: [],
     suppliers: [],
@@ -104,8 +109,24 @@ const SupplyChainManagement = () => {
     }
   });
 
-  const handleCreateItem = async (itemData) => {
+  const handleCreateItem = async (formData) => {
     try {
+      const itemData = {
+        item_name: formData.get('item_name'),
+        item_code: formData.get('item_code'),
+        sku: formData.get('sku'),
+        category: formData.get('category'),
+        supplier_id: parseInt(formData.get('supplier_id')) || null,
+        current_stock: parseFloat(formData.get('current_stock')) || 0,
+        min_stock_level: parseFloat(formData.get('min_stock_level')) || 0,
+        max_stock_level: parseFloat(formData.get('max_stock_level')) || 0,
+        unit_of_measure: formData.get('unit_of_measure'),
+        unit_price: parseFloat(formData.get('unit_price')) || 0,
+        storage_location: formData.get('storage_location'),
+        expiry_date: formData.get('expiry_date') || null,
+        quality_grade: formData.get('quality_grade') || 'A'
+      };
+
       const response = await fetch(`/api/supply-chain?userId=${user.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,12 +148,126 @@ const SupplyChainManagement = () => {
     }
   };
 
+  const handleCreateOrder = async (formData) => {
+    try {
+      const orderData = {
+        supplier_id: parseInt(formData.get('supplier_id')),
+        order_date: formData.get('order_date'),
+        expected_delivery_date: formData.get('expected_delivery_date'),
+        priority_level: formData.get('priority_level') || 'normal',
+        order_notes: formData.get('order_notes'),
+        items: [
+          {
+            item_id: parseInt(formData.get('item_id')),
+            quantity: parseFloat(formData.get('quantity')),
+            unit_price: parseFloat(formData.get('unit_price'))
+          }
+        ]
+      };
+
+      const response = await fetch(`/api/supply-chain?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'create_order', data: orderData })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setShowAddForm(false);
+        loadSupplyChainData(); // Reload data
+        alert('Order created successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to create order'}`);
+      }
+    } catch (error) {
+      console.error('Error creating order:', error);
+      alert('Failed to create order');
+    }
+  };
+
+  const handleUpdateItem = async (itemId, formData) => {
+    try {
+      const itemData = {
+        item_name: formData.get('item_name'),
+        current_stock: parseFloat(formData.get('current_stock')),
+        min_stock_level: parseFloat(formData.get('min_stock_level')),
+        max_stock_level: parseFloat(formData.get('max_stock_level')),
+        unit_price: parseFloat(formData.get('unit_price')),
+        storage_location: formData.get('storage_location'),
+        expiry_date: formData.get('expiry_date') || null,
+        quality_grade: formData.get('quality_grade'),
+        item_status: formData.get('item_status')
+      };
+
+      const response = await fetch(`/api/supply-chain?userId=${user.id}&id=${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_item', data: itemData })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setSelectedItem(null);
+        loadSupplyChainData();
+        alert('Item updated successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to update item'}`);
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      alert('Failed to update item');
+    }
+  };
+
+  const handleDeleteItem = async (itemId) => {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+
+    try {
+      const response = await fetch(`/api/supply-chain?userId=${user.id}&id=${itemId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'delete_item' })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        loadSupplyChainData();
+        alert('Item deleted successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to delete item'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      alert('Failed to delete item');
+    }
+  };
+
   const tabs = [
     { id: 'overview', label: 'Dashboard Overview', icon: HiCube },
     { id: 'inventory', label: 'Inventory Management', icon: FaWarehouse },
     { id: 'suppliers', label: 'Supplier Network', icon: FaHandshake },
     { id: 'orders', label: 'Order Tracking', icon: HiTruck },
     { id: 'analytics', label: 'Analytics & Reports', icon: FaChartLine }
+  ];
+
+  const categories = [
+    { id: 'seeds', label: 'Seeds' },
+    { id: 'fertilizers', label: 'Fertilizers' },
+    { id: 'pesticides', label: 'Pesticides' },
+    { id: 'equipment', label: 'Equipment' },
+    { id: 'tools', label: 'Tools' },
+    { id: 'others', label: 'Others' }
+  ];
+
+  const qualityGrades = [
+    { id: 'A+', label: 'A+ (Premium)' },
+    { id: 'A', label: 'A (Excellent)' },
+    { id: 'B+', label: 'B+ (Good)' },
+    { id: 'B', label: 'B (Standard)' },
+    { id: 'C', label: 'C (Basic)' }
   ];
 
   const getStatusColor = (status) => {
@@ -142,6 +277,7 @@ const SupplyChainManagement = () => {
       adequate: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       low: 'bg-red-100 text-red-800 border-red-200',
       critical: 'bg-red-100 text-red-800 border-red-200',
+      out: 'bg-gray-100 text-gray-800 border-gray-200',
       active: 'bg-green-100 text-green-800 border-green-200',
       delivered: 'bg-green-100 text-green-800 border-green-200',
       shipped: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -183,8 +319,9 @@ const SupplyChainManagement = () => {
   const filteredInventory = supplyChainData?.inventory?.filter(item => {
     const matchesSearch = item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || item.status === filterStatus;
-    return matchesSearch && matchesFilter;
+    const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
+    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
+    return matchesSearch && matchesStatus && matchesCategory;
   }) || [];
 
   if (loading && !supplyChainData) {
@@ -281,11 +418,27 @@ const SupplyChainManagement = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => {
+                      setAddFormType('item');
+                      setShowAddForm(true);
+                    }}
                     className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-colors"
                   >
                     <HiPlus className="w-4 h-4" />
                     Add Item
+                  </motion.button>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setAddFormType('order');
+                      setShowAddForm(true);
+                    }}
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-colors"
+                  >
+                    <HiPlus className="w-4 h-4" />
+                    New Order
                   </motion.button>
                   
                   <button className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors">
@@ -328,7 +481,8 @@ const SupplyChainManagement = () => {
                 icon: HiCube,
                 color: 'blue',
                 change: '+12 this month',
-                trend: 'up'
+                trend: 'up',
+                onClick: () => setActiveTab('inventory')
               },
               {
                 title: 'Total Value',
@@ -337,7 +491,8 @@ const SupplyChainManagement = () => {
                 icon: HiCash,
                 color: 'green',
                 change: `+${supplyChainData?.overview?.costSavings?.toFixed(1) || 15.7}% savings`,
-                trend: 'up'
+                trend: 'up',
+                onClick: () => setActiveTab('analytics')
               },
               {
                 title: 'Active Suppliers',
@@ -346,16 +501,18 @@ const SupplyChainManagement = () => {
                 icon: FaHandshake,
                 color: 'purple',
                 change: `${supplyChainData?.overview?.onTimeDelivery?.toFixed(1) || 96.5}% reliability`,
-                trend: 'up'
+                trend: 'up',
+                onClick: () => setActiveTab('suppliers')
               },
               {
-                title: 'Delivery Performance',
-                value: supplyChainData?.overview?.onTimeDelivery?.toFixed(1) || 0,
-                unit: '% On-time',
-                icon: HiClock,
-                color: 'indigo',
-                change: '+2.3% improvement',
-                trend: 'up'
+                title: 'Low Stock Alerts',
+                value: supplyChainData?.overview?.lowStockItems || 0,
+                unit: 'Items',
+                icon: HiExclamation,
+                color: 'red',
+                change: 'Needs attention',
+                trend: 'down',
+                onClick: () => setActiveTab('inventory')
               }
             ].map((metric, index) => (
               <motion.div
@@ -363,13 +520,18 @@ const SupplyChainManagement = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all border border-gray-100"
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all border border-gray-100 cursor-pointer"
+                onClick={metric.onClick}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className={`w-12 h-12 bg-${metric.color}-100 rounded-xl flex items-center justify-center`}>
                     <metric.icon className={`w-6 h-6 text-${metric.color}-600`} />
                   </div>
-                  <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                    metric.trend === 'up' ? 'text-green-600 bg-green-50' : 
+                    metric.trend === 'down' ? 'text-red-600 bg-red-50' : 'text-gray-600 bg-gray-50'
+                  }`}>
                     {metric.change}
                   </span>
                 </div>
@@ -440,7 +602,13 @@ const SupplyChainManagement = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">Low Stock Items</span>
                           <span className="font-bold text-red-600">
-                            {supplyChainData?.inventory?.filter(item => item.status === 'low').length || 0}
+                            {supplyChainData?.overview?.lowStockItems || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Out of Stock</span>
+                          <span className="font-bold text-red-600">
+                            {supplyChainData?.overview?.outOfStockItems || 0}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -476,6 +644,12 @@ const SupplyChainManagement = () => {
                             {supplyChainData?.overview?.pendingOrders || 0}
                           </span>
                         </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Active Suppliers</span>
+                          <span className="font-bold text-indigo-600">
+                            {supplyChainData?.overview?.activeSuppliers || 0}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -498,9 +672,15 @@ const SupplyChainManagement = () => {
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Active Suppliers</span>
-                          <span className="font-bold text-indigo-600">
-                            {supplyChainData?.overview?.activeSuppliers || 0}
+                          <span className="text-gray-600">Avg Delivery Time</span>
+                          <span className="font-bold text-blue-600">
+                            {supplyChainData?.analytics?.supplierPerformance?.avgDeliveryTime || 5.2} days
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Sustainability Score</span>
+                          <span className="font-bold text-green-600">
+                            {supplyChainData?.analytics?.supplierPerformance?.sustainabilityScore || 87.3}%
                           </span>
                         </div>
                       </div>
@@ -512,14 +692,22 @@ const SupplyChainManagement = () => {
                     <h3 className="font-bold text-gray-900 mb-4">Recent Supply Chain Activity</h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div className="space-y-3">
-                        <h4 className="font-semibold text-gray-800">Latest Deliveries</h4>
-                        {supplyChainData?.orders?.filter(order => order.status === 'delivered').slice(0, 3).map((order) => (
+                        <h4 className="font-semibold text-gray-800">Latest Orders</h4>
+                        {supplyChainData?.orders?.slice(0, 3).map((order) => (
                           <div key={order.id} className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                              <HiCheck className="w-4 h-4 text-green-600" />
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              order.status === 'delivered' ? 'bg-green-100' :
+                              order.status === 'shipped' ? 'bg-blue-100' :
+                              order.status === 'pending' ? 'bg-yellow-100' : 'bg-gray-100'
+                            }`}>
+                              <HiTruck className={`w-4 h-4 ${
+                                order.status === 'delivered' ? 'text-green-600' :
+                                order.status === 'shipped' ? 'text-blue-600' :
+                                order.status === 'pending' ? 'text-yellow-600' : 'text-gray-600'
+                              }`} />
                             </div>
                             <div className="flex-1">
-                              <p className="font-medium text-gray-900">{order.id}</p>
+                              <p className="font-medium text-gray-900">{order.orderNumber}</p>
                               <p className="text-sm text-gray-600">{order.supplierName}</p>
                             </div>
                             <span className="text-sm text-green-600 font-medium">
@@ -529,14 +717,14 @@ const SupplyChainManagement = () => {
                         )) || (
                           <div className="text-center py-4 text-gray-500">
                             <HiTruck className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p>No recent deliveries</p>
+                            <p>No recent orders</p>
                           </div>
                         )}
                       </div>
                       
                       <div className="space-y-3">
                         <h4 className="font-semibold text-gray-800">Low Stock Alerts</h4>
-                        {supplyChainData?.inventory?.filter(item => item.status === 'low' || item.status === 'critical').slice(0, 3).map((item) => (
+                        {supplyChainData?.inventory?.filter(item => ['low', 'critical', 'out'].includes(item.status)).slice(0, 3).map((item) => (
                           <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg">
                             <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
                               <HiExclamation className="w-4 h-4 text-red-600" />
@@ -545,7 +733,12 @@ const SupplyChainManagement = () => {
                               <p className="font-medium text-gray-900">{item.itemName}</p>
                               <p className="text-sm text-gray-600">Stock: {item.currentStock} {item.unit}</p>
                             </div>
-                            <span className="text-sm text-red-600 font-medium capitalize">{item.status}</span>
+                            <span className={`text-sm font-medium capitalize ${
+                              item.status === 'critical' ? 'text-red-600' :
+                              item.status === 'low' ? 'text-orange-600' : 'text-red-600'
+                            }`}>
+                              {item.status}
+                            </span>
                           </div>
                         )) || (
                           <div className="text-center py-4 text-gray-500">
@@ -581,6 +774,17 @@ const SupplyChainManagement = () => {
                     
                     <div className="flex gap-3">
                       <select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="all">All Categories</option>
+                        {categories.map(category => (
+                          <option key={category.id} value={category.id}>{category.label}</option>
+                        ))}
+                      </select>
+                      
+                      <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -591,6 +795,7 @@ const SupplyChainManagement = () => {
                         <option value="adequate">Adequate</option>
                         <option value="low">Low Stock</option>
                         <option value="critical">Critical</option>
+                        <option value="out">Out of Stock</option>
                       </select>
                       
                       <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
@@ -609,6 +814,7 @@ const SupplyChainManagement = () => {
                         <motion.div
                           key={item.id}
                           layout
+                          whileHover={{ scale: 1.02, y: -2 }}
                           className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all cursor-pointer"
                           onClick={() => setSelectedItem(item)}
                         >
@@ -650,7 +856,12 @@ const SupplyChainManagement = () => {
                             </div>
 
                             <div className="flex justify-between text-sm">
-                              <span className="text-gray-600">Value</span>
+                              <span className="text-gray-600">Unit Price</span>
+                              <span className="font-medium">{formatCurrency(item.pricePerUnit)}</span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Total Value</span>
                               <span className="font-bold text-green-600">{formatCurrency(item.totalValue)}</span>
                             </div>
 
@@ -666,13 +877,34 @@ const SupplyChainManagement = () => {
                           </div>
 
                           <div className="mt-4 flex gap-2">
-                            <button className="flex-1 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedItem(item);
+                              }}
+                              className="flex-1 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium"
+                            >
                               <HiEye className="w-3 h-3 inline mr-1" />
                               View
                             </button>
-                            <button className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-xs font-medium">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedItem(item);
+                              }}
+                              className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-xs font-medium"
+                            >
                               <HiPencil className="w-3 h-3 inline mr-1" />
                               Edit
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteItem(item.id);
+                              }}
+                              className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-xs font-medium"
+                            >
+                              <HiTrash className="w-3 h-3" />
                             </button>
                           </div>
                         </motion.div>
@@ -683,7 +915,10 @@ const SupplyChainManagement = () => {
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Inventory Items</h3>
                         <p className="text-gray-600 mb-4">Start by adding your first inventory item.</p>
                         <button
-                          onClick={() => setShowAddForm(true)}
+                          onClick={() => {
+                            setAddFormType('item');
+                            setShowAddForm(true);
+                          }}
                           className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                         >
                           Add Item
@@ -703,7 +938,11 @@ const SupplyChainManagement = () => {
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {supplyChainData?.suppliers?.length > 0 ? supplyChainData.suppliers.map((supplier) => (
-                      <div key={supplier.id} className="bg-white border border-gray-200 rounded-xl p-6">
+                      <motion.div
+                        key={supplier.id}
+                        whileHover={{ scale: 1.01, y: -2 }}
+                        className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all"
+                      >
                         <div className="flex items-start justify-between mb-4">
                           <div>
                             <h3 className="font-bold text-gray-900 text-lg">{supplier.name}</h3>
@@ -722,11 +961,11 @@ const SupplyChainManagement = () => {
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 mb-1">On-time Delivery</p>
-                            <p className="font-bold text-green-600">{supplier.onTimeDelivery}%</p>
+                            <p className="font-bold text-green-600">{supplier.onTimeDelivery.toFixed(1)}%</p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Quality Score</p>
-                            <p className="font-bold text-blue-600">{supplier.qualityScore}%</p>
+                            <p className="font-bold text-blue-600">{supplier.qualityScore.toFixed(1)}%</p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Payment Terms</p>
@@ -761,11 +1000,17 @@ const SupplyChainManagement = () => {
                           <button className="flex-1 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium">
                             View Details
                           </button>
-                          <button className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium">
+                          <button 
+                            onClick={() => {
+                              setAddFormType('order');
+                              setShowAddForm(true);
+                            }}
+                            className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                          >
                             New Order
                           </button>
                         </div>
-                      </div>
+                      </motion.div>
                     )) : (
                       <div className="col-span-full text-center py-12">
                         <FaHandshake className="w-16 h-16 mx-auto mb-4 text-gray-300" />
@@ -786,10 +1031,15 @@ const SupplyChainManagement = () => {
                 >
                   <div className="space-y-4">
                     {supplyChainData?.orders?.length > 0 ? supplyChainData.orders.map((order) => (
-                      <div key={order.id} className="bg-white border border-gray-200 rounded-xl p-6">
+                      <motion.div
+                        key={order.id}
+                        layout
+                        whileHover={{ scale: 1.005, y: -1 }}
+                        className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all"
+                      >
                         <div className="flex items-start justify-between mb-4">
                           <div>
-                            <h3 className="font-bold text-gray-900 text-lg">{order.id}</h3>
+                            <h3 className="font-bold text-gray-900 text-lg">{order.orderNumber}</h3>
                             <p className="text-sm text-gray-600">{order.supplierName}</p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -831,13 +1081,15 @@ const SupplyChainManagement = () => {
                           <h4 className="font-semibold text-gray-900 mb-2">Order Items</h4>
                           <div className="space-y-2">
                             {order.items?.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-sm">
-                                <span className="text-gray-700">{item.name}</span>
+                              <div key={idx} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
+                                <span className="text-gray-700">{item.item_name || item.name || 'Item'}</span>
                                 <span className="text-gray-600">
-                                  {item.quantity} {item.unit} × {formatCurrency(item.price)}
+                                  {item.quantity} {item.unit_of_measure || item.unit || 'pcs'} × {formatCurrency(item.unit_price || item.price)}
                                 </span>
                               </div>
-                            ))}
+                            )) || (
+                              <p className="text-sm text-gray-500">No items details available</p>
+                            )}
                           </div>
                         </div>
 
@@ -848,19 +1100,39 @@ const SupplyChainManagement = () => {
                         )}
 
                         <div className="flex gap-2 mt-4">
-                          <button className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium">
+                          <button 
+                            onClick={() => setSelectedOrder(order)}
+                            className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
+                          >
+                            <HiEye className="w-3 h-3 inline mr-1" />
                             Track Order
                           </button>
                           <button className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium">
+                            <FaFileInvoiceDollar className="w-3 h-3 inline mr-1" />
                             View Invoice
                           </button>
+                          {order.status === 'pending' && (
+                            <button className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium">
+                              <HiX className="w-3 h-3 inline mr-1" />
+                              Cancel
+                            </button>
+                          )}
                         </div>
-                      </div>
+                      </motion.div>
                     )) : (
                       <div className="text-center py-12">
                         <HiTruck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Orders</h3>
-                        <p className="text-gray-600">Start by creating your first order.</p>
+                        <p className="text-gray-600 mb-4">Start by creating your first order.</p>
+                        <button
+                          onClick={() => {
+                            setAddFormType('order');
+                            setShowAddForm(true);
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          Create Order
+                        </button>
                       </div>
                     )}
                   </div>
@@ -884,7 +1156,7 @@ const SupplyChainManagement = () => {
                             <div className="flex items-center gap-2">
                               <div className="w-20 h-2 bg-gray-200 rounded-full">
                                 <div 
-                                  className="h-2 bg-indigo-500 rounded-full"
+                                  className="h-2 bg-indigo-500 rounded-full transition-all"
                                   style={{ width: `${percentage}%` }}
                                 />
                               </div>
@@ -932,6 +1204,373 @@ const SupplyChainManagement = () => {
             </div>
           </motion.div>
 
+          {/* Add Form Modal */}
+          <AnimatePresence>
+            {showAddForm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                onClick={() => setShowAddForm(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {addFormType === 'item' ? 'Add New Inventory Item' : 'Create New Order'}
+                    </h2>
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="p-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <HiX className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {addFormType === 'item' ? (
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      handleCreateItem(formData);
+                    }} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Item Name *
+                          </label>
+                          <input
+                            type="text"
+                            name="item_name"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="Enter item name..."
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Category *
+                          </label>
+                          <select name="category" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select Category</option>
+                            {categories.map(category => (
+                              <option key={category.id} value={category.id}>{category.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Item Code *
+                          </label>
+                          <input
+                            type="text"
+                            name="item_code"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="ITM-001"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            SKU *
+                          </label>
+                          <input
+                            type="text"
+                            name="sku"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="SKU-ITM-001"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Unit of Measure *
+                          </label>
+                          <input
+                            type="text"
+                            name="unit_of_measure"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="kg, liter, unit"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Current Stock *
+                          </label>
+                          <input
+                            type="number"
+                            name="current_stock"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="100"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Min Stock Level
+                          </label>
+                          <input
+                            type="number"
+                            name="min_stock_level"
+                            step="0.01"
+                            min="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="10"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Max Stock Level
+                          </label>
+                          <input
+                            type="number"
+                            name="max_stock_level"
+                            step="0.01"
+                            min="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="1000"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Unit Price (IDR) *
+                          </label>
+                          <input
+                            type="number"
+                            name="unit_price"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="35000"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Storage Location
+                          </label>
+                          <input
+                            type="text"
+                            name="storage_location"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="Gudang A-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Supplier
+                          </label>
+                          <select name="supplier_id" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select Supplier</option>
+                            {supplyChainData?.suppliers?.map(supplier => (
+                              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quality Grade
+                          </label>
+                          <select name="quality_grade" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            {qualityGrades.map(grade => (
+                              <option key={grade.id} value={grade.id}>{grade.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Expiry Date
+                          </label>
+                          <input
+                            type="date"
+                            name="expiry_date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {loading ? 'Creating...' : 'Create Item'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddForm(false)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      handleCreateOrder(formData);
+                    }} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Supplier *
+                          </label>
+                          <select name="supplier_id" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select Supplier</option>
+                            {supplyChainData?.suppliers?.map(supplier => (
+                              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Item *
+                          </label>
+                          <select name="item_id" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select Item</option>
+                            {supplyChainData?.inventory?.map(item => (
+                              <option key={item.id} value={item.id}>{item.itemName}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quantity *
+                          </label>
+                          <input
+                            type="number"
+                            name="quantity"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="100"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Unit Price (IDR) *
+                          </label>
+                          <input
+                            type="number"
+                            name="unit_price"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="35000"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Priority Level
+                          </label>
+                          <select name="priority_level" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="low">Low</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Order Date *
+                          </label>
+                          <input
+                            type="date"
+                            name="order_date"
+                            required
+                            defaultValue={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Expected Delivery Date
+                          </label>
+                          <input
+                            type="date"
+                            name="expected_delivery_date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Order Notes
+                        </label>
+                        <textarea
+                          name="order_notes"
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          placeholder="Additional notes for this order..."
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {loading ? 'Creating...' : 'Create Order'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddForm(false)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Item Detail Modal */}
           <AnimatePresence>
             {selectedItem && (
@@ -946,7 +1585,7 @@ const SupplyChainManagement = () => {
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                  className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between mb-6">
@@ -962,252 +1601,149 @@ const SupplyChainManagement = () => {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Current Stock</label>
-                        <p className="text-xl font-bold text-gray-900">{selectedItem.currentStock} {selectedItem.unit}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Stock Range</label>
-                        <p className="text-gray-900">Min: {selectedItem.minStock} | Max: {selectedItem.maxStock}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Unit Price</label>
-                        <p className="text-lg font-bold text-green-600">{formatCurrency(selectedItem.pricePerUnit)}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Total Value</label>
-                        <p className="text-lg font-bold text-green-600">{formatCurrency(selectedItem.totalValue)}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Supplier</label>
-                        <p className="text-gray-900">{selectedItem.supplier}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Storage Location</label>
-                        <p className="text-gray-900">{selectedItem.location || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Quality Grade</label>
-                        <p className="text-gray-900">{selectedItem.qualityGrade || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Tracking Code</label>
-                        <p className="text-gray-900 font-mono">{selectedItem.trackingCode || 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex gap-3">
-                    <button className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-                      Update Stock
-                    </button>
-                    <button className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                      Reorder
-                    </button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                      Print QR
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Add Item Modal */}
-          <AnimatePresence>
-            {showAddForm && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-                onClick={() => setShowAddForm(false)}
-              >
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Add New Inventory Item</h2>
-                    <button
-                      onClick={() => setShowAddForm(false)}
-                      className="p-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <HiX className="w-5 h-5" />
-                    </button>
-                  </div>
-
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    const itemData = {
-                      item_name: formData.get('item_name'),
-                      category: formData.get('category'),
-                      sku: formData.get('sku'),
-                      current_stock: parseFloat(formData.get('current_stock')),
-                      min_stock: parseFloat(formData.get('min_stock')),
-                      max_stock: parseFloat(formData.get('max_stock')),
-                      unit: formData.get('unit'),
-                      unit_price: parseFloat(formData.get('unit_price')),
-                      storage_location: formData.get('storage_location'),
-                      supplier_id: formData.get('supplier_id')
-                    };
-                    handleCreateItem(itemData);
+                    handleUpdateItem(selectedItem.id, formData);
                   }} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Item Name
-                        </label>
+                        <label className="text-sm font-medium text-gray-700">Item Name</label>
                         <input
                           type="text"
                           name="item_name"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="Enter item name..."
+                          defaultValue={selectedItem.itemName}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
                         />
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Category
-                        </label>
-                        <select name="category" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                          <option value="">Select Category</option>
-                          <option value="seeds">Seeds</option>
-                          <option value="fertilizers">Fertilizers</option>
-                          <option value="pesticides">Pesticides</option>
-                          <option value="equipment">Equipment</option>
-                          <option value="tools">Tools</option>
-                          <option value="others">Others</option>
-                        </select>
+                        <label className="text-sm font-medium text-gray-700">Current Stock</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="number"
+                            name="current_stock"
+                            defaultValue={selectedItem.currentStock}
+                            step="0.01"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                          <span className="text-gray-500">{selectedItem.unit}</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          SKU
-                        </label>
+                        <label className="text-sm font-medium text-gray-700">Min Stock Level</label>
                         <input
-                          type="text"
-                          name="sku"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="SKU-001"
+                          type="number"
+                          name="min_stock_level"
+                          defaultValue={selectedItem.minStock}
+                          step="0.01"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
                         />
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Unit of Measure
-                        </label>
+                        <label className="text-sm font-medium text-gray-700">Max Stock Level</label>
+                        <input
+                          type="number"
+                          name="max_stock_level"
+                          defaultValue={selectedItem.maxStock}
+                          step="0.01"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Unit Price (IDR)</label>
+                        <input
+                          type="number"
+                          name="unit_price"
+                          defaultValue={selectedItem.pricePerUnit}
+                          step="0.01"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Storage Location</label>
                         <input
                           type="text"
-                          name="unit"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="kg, liter, unit"
+                          name="storage_location"
+                          defaultValue={selectedItem.location}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Current Stock
-                        </label>
-                        <input
-                          type="number"
-                          name="current_stock"
-                          step="0.01"
-                          min="0"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="100"
-                        />
+                        <label className="text-sm font-medium text-gray-700">Quality Grade</label>
+                        <select name="quality_grade" defaultValue={selectedItem.qualityGrade} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1">
+                          {qualityGrades.map(grade => (
+                            <option key={grade.id} value={grade.id}>{grade.label}</option>
+                          ))}
+                        </select>
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Min Stock
-                        </label>
-                        <input
-                          type="number"
-                          name="min_stock"
-                          step="0.01"
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="10"
-                        />
+                        <label className="text-sm font-medium text-gray-700">Item Status</label>
+                        <select name="item_status" defaultValue={selectedItem.itemStatus} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1">
+                          <option value="active">Active</option>
+                          <option value="discontinued">Discontinued</option>
+                          <option value="out_of_stock">Out of Stock</option>
+                        </select>
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Max Stock
-                        </label>
+                        <label className="text-sm font-medium text-gray-700">Expiry Date</label>
                         <input
-                          type="number"
-                          name="max_stock"
-                          step="0.01"
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="1000"
+                          type="date"
+                          name="expiry_date"
+                          defaultValue={selectedItem.expiryDate}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-1"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Unit Price (IDR)
-                        </label>
-                        <input
-                          type="number"
-                          name="unit_price"
-                          step="0.01"
-                          min="0"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="35000"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Storage Location
-                        </label>
-                        <input
-                          type="text"
-                          name="storage_location"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="Gudang A-1"
-                        />
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="font-semibold text-gray-900 mb-2">Current Information</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Total Value:</span>
+                          <p className="font-bold text-green-600">{formatCurrency(selectedItem.totalValue)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Supplier:</span>
+                          <p className="font-medium">{selectedItem.supplier}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Tracking Code:</span>
+                          <p className="font-mono text-xs">{selectedItem.trackingCode}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Last Updated:</span>
+                          <p className="font-medium">{formatDate(selectedItem.lastUpdated)}</p>
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex gap-3">
                       <button
                         type="submit"
-                        disabled={loading}
-                        className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
+                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                       >
-                        {loading ? 'Creating...' : 'Create Item'}
+                        Update Item
                       </button>
                       <button
                         type="button"
-                        onClick={() => setShowAddForm(false)}
-                        className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                       >
-                        Cancel
+                        Reorder
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Print QR
                       </button>
                     </div>
                   </form>

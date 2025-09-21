@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
-// Fixed MariaDB Configuration - removed invalid options
+// Enhanced MariaDB Configuration
 const dbConfig = {
   host: 'srv566.hstgr.io',
   port: 3306,
@@ -78,7 +78,7 @@ async function createTables() {
       await connection.execute(`DROP TABLE IF EXISTS ${table}`);
     }
 
-    // Create tables with optimized schema
+    // Create tables with enhanced schema
     const tables = {
       users: `
         CREATE TABLE users (
@@ -318,6 +318,48 @@ async function createTables() {
           INDEX idx_status (order_status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `,
+
+      supply_chain_order_items: `
+        CREATE TABLE supply_chain_order_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          order_id INT NOT NULL,
+          item_id INT NOT NULL,
+          quantity DECIMAL(12,2) NOT NULL,
+          unit_price DECIMAL(12,2) NOT NULL,
+          total_price DECIMAL(20,2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
+          delivered_quantity DECIMAL(12,2) DEFAULT 0,
+          item_status ENUM('pending', 'partial', 'delivered', 'cancelled') DEFAULT 'pending',
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (order_id) REFERENCES supply_chain_orders(id) ON DELETE CASCADE,
+          FOREIGN KEY (item_id) REFERENCES supply_chain_items(id) ON DELETE CASCADE,
+          INDEX idx_order_item (order_id, item_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `,
+
+      inventory_movements: `
+        CREATE TABLE inventory_movements (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          item_id INT NOT NULL,
+          movement_type ENUM('in', 'out', 'adjustment', 'transfer') NOT NULL,
+          quantity DECIMAL(12,2) NOT NULL,
+          reference_type ENUM('purchase', 'sale', 'production', 'consumption', 'adjustment', 'transfer') NOT NULL,
+          reference_id INT,
+          previous_stock DECIMAL(12,2) NOT NULL,
+          new_stock DECIMAL(12,2) NOT NULL,
+          unit_cost DECIMAL(12,2),
+          total_cost DECIMAL(20,2),
+          movement_date DATE NOT NULL,
+          notes TEXT,
+          created_by INT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (item_id) REFERENCES supply_chain_items(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+          INDEX idx_item_date (item_id, movement_date),
+          INDEX idx_type (movement_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `,
       
       system_alerts: `
         CREATE TABLE system_alerts (
@@ -426,7 +468,7 @@ async function seedUsers() {
       );
     }
     
-    console.log(`✓ Created ${kabupatenJatim.length} users`);
+    console.log(`✅ Created ${kabupatenJatim.length} users`);
   });
 }
 
@@ -454,6 +496,16 @@ async function seedSuppliers() {
         name: 'PT. Alat Mesin Pertanian', code: 'AMP001', category: 'equipment',
         contact: 'Indra Kusuma', email: 'indra@alatmesin.com', phone: '+62-814-7777-8888',
         city: 'Gresik', rating: 4.5, certs: ['ISO 9001', 'CE Certified']
+      },
+      {
+        name: 'CV. Teknologi Tani Modern', code: 'TTM001', category: 'equipment',
+        contact: 'Dewi Sartika', email: 'dewi@teknotani.com', phone: '+62-815-1234-5678',
+        city: 'Malang', rating: 4.3, certs: ['ISO 9001']
+      },
+      {
+        name: 'PT. Agro Services Indonesia', code: 'ASI001', category: 'services',
+        contact: 'Andi Wijaya', email: 'andi@agroservices.id', phone: '+62-816-8888-9999',
+        city: 'Surabaya', rating: 4.4, certs: ['ISO 9001', 'Halal']
       }
     ];
     
@@ -472,7 +524,7 @@ async function seedSuppliers() {
       );
     }
     
-    console.log('✓ Suppliers seeded');
+    console.log('✅ Suppliers seeded');
   });
 }
 
@@ -482,9 +534,20 @@ async function seedSupplyChainItems() {
     
     const items = [
       { name: 'Benih Padi IR64 Premium', code: 'SPD-IR64-001', category: 'seeds', stock: 2500, min: 500, max: 5000, unit: 'kg', price: 35000, location: 'Gudang A-1', supplier_id: 1 },
+      { name: 'Benih Jagung Hibrida NK212', code: 'SJG-NK212-002', category: 'seeds', stock: 1800, min: 300, max: 3000, unit: 'kg', price: 45000, location: 'Gudang A-2', supplier_id: 1 },
+      { name: 'Benih Kedelai Grobogan', code: 'SKD-GRB-003', category: 'seeds', stock: 1200, min: 200, max: 2000, unit: 'kg', price: 28000, location: 'Gudang A-3', supplier_id: 1 },
       { name: 'Pupuk NPK 15-15-15 Organik', code: 'FRT-NPK-002', category: 'fertilizers', stock: 1200, min: 300, max: 2000, unit: 'kg', price: 12500, location: 'Gudang B-2', supplier_id: 2 },
-      { name: 'Pestisida Organik Nabati', code: 'PST-ORG-003', category: 'pesticides', stock: 150, min: 200, max: 500, unit: 'liter', price: 85000, location: 'Gudang C-1', supplier_id: 3 },
-      { name: 'Traktor Mini 4WD 25HP', code: 'EQP-TRC-004', category: 'equipment', stock: 3, min: 2, max: 5, unit: 'unit', price: 75000000, location: 'Gudang Equipment', supplier_id: 4 }
+      { name: 'Pupuk Urea Premium', code: 'FRT-URE-004', category: 'fertilizers', stock: 800, min: 200, max: 1500, unit: 'kg', price: 8500, location: 'Gudang B-1', supplier_id: 2 },
+      { name: 'Pupuk TSP Super', code: 'FRT-TSP-005', category: 'fertilizers', stock: 600, min: 150, max: 1000, unit: 'kg', price: 15000, location: 'Gudang B-3', supplier_id: 2 },
+      { name: 'Pestisida Organik Nabati', code: 'PST-ORG-003', category: 'pesticides', stock: 150, min: 50, max: 500, unit: 'liter', price: 85000, location: 'Gudang C-1', supplier_id: 3 },
+      { name: 'Insektisida Bio Herbal', code: 'PST-INS-006', category: 'pesticides', stock: 100, min: 30, max: 300, unit: 'liter', price: 95000, location: 'Gudang C-2', supplier_id: 3 },
+      { name: 'Fungisida Organik', code: 'PST-FNG-007', category: 'pesticides', stock: 80, min: 25, max: 250, unit: 'liter', price: 105000, location: 'Gudang C-3', supplier_id: 3 },
+      { name: 'Traktor Mini 4WD 25HP', code: 'EQP-TRC-004', category: 'equipment', stock: 3, min: 2, max: 5, unit: 'unit', price: 75000000, location: 'Gudang Equipment', supplier_id: 4 },
+      { name: 'Hand Tractor 8HP', code: 'EQP-HTR-008', category: 'equipment', stock: 8, min: 3, max: 15, unit: 'unit', price: 12500000, location: 'Gudang Equipment', supplier_id: 4 },
+      { name: 'Combine Harvester Mini', code: 'EQP-CHV-009', category: 'equipment', stock: 2, min: 1, max: 3, unit: 'unit', price: 125000000, location: 'Gudang Equipment', supplier_id: 4 },
+      { name: 'Sprayer Motorized', code: 'TLS-SPR-010', category: 'tools', stock: 25, min: 10, max: 50, unit: 'unit', price: 2500000, location: 'Gudang Tools', supplier_id: 5 },
+      { name: 'Soil pH Meter Digital', code: 'TLS-PHM-011', category: 'tools', stock: 15, min: 5, max: 30, unit: 'unit', price: 850000, location: 'Gudang Tools', supplier_id: 5 },
+      { name: 'GPS Handheld Professional', code: 'TLS-GPS-012', category: 'tools', stock: 12, min: 5, max: 25, unit: 'unit', price: 3500000, location: 'Gudang Tools', supplier_id: 5 }
     ];
     
     for (const item of items) {
@@ -502,7 +565,7 @@ async function seedSupplyChainItems() {
       );
     }
     
-    console.log('✓ Supply chain items seeded');
+    console.log('✅ Supply chain items seeded');
   });
 }
 
@@ -510,52 +573,281 @@ async function seedAgriculturalFields() {
   return await withConnection(async (connection) => {
     console.log('Seeding agricultural fields...');
     
-    const baseCoordinates = { malang: { lat: -7.9826, lng: 112.6308 } };
+    const baseCoordinates = { 
+      malang: { lat: -7.9826, lng: 112.6308 },
+      surabaya: { lat: -7.2504, lng: 112.7688 },
+      kediri: { lat: -7.8167, lng: 112.0167 }
+    };
+    
     const crops = [
-      { crop: 'padi', variety: 'IR64 Premium', area: 12.5 },
-      { crop: 'jagung', variety: 'Hibrida NK212', area: 8.2 },
-      { crop: 'kedelai', variety: 'Grobogan', area: 15.8 }
+      { crop: 'padi', variety: 'IR64 Premium', area: 12.5, growthStage: 'vegetative' },
+      { crop: 'jagung', variety: 'Hibrida NK212', area: 8.2, growthStage: 'flowering' },
+      { crop: 'kedelai', variety: 'Grobogan', area: 15.8, growthStage: 'fruiting' },
+      { crop: 'tebu', variety: 'PS 862', area: 20.5, growthStage: 'vegetative' },
+      { crop: 'cabai', variety: 'Keriting Merah', area: 5.2, growthStage: 'flowering' }
     ];
     
-    for (let i = 0; i < 10; i++) {
-      const kabupaten = kabupatenJatim[i];
-      for (let j = 0; j < 2; j++) {
-        const crop = crops[j % crops.length];
-        const plantingDate = new Date();
-        plantingDate.setDate(plantingDate.getDate() - Math.floor(Math.random() * 60));
-        const expectedHarvest = new Date(plantingDate);
-        expectedHarvest.setMonth(expectedHarvest.getMonth() + 3);
+    for (let i = 0; i < 30; i++) {
+      const kabupaten = kabupatenJatim[i % kabupatenJatim.length];
+      const crop = crops[i % crops.length];
+      const coordBase = Object.values(baseCoordinates)[i % Object.keys(baseCoordinates).length];
+      
+      const plantingDate = new Date();
+      plantingDate.setDate(plantingDate.getDate() - Math.floor(Math.random() * 90));
+      const expectedHarvest = new Date(plantingDate);
+      expectedHarvest.setMonth(expectedHarvest.getMonth() + (crop.crop === 'tebu' ? 12 : 3));
+      
+      await connection.execute(
+        `INSERT INTO agricultural_fields (
+          user_id, field_name, kabupaten, location_address, coordinates_lat, 
+          coordinates_lng, area_hectares, crop_type, crop_variety, planting_date,
+          expected_harvest_date, growth_stage, health_score, current_ndvi,
+          current_soil_moisture, current_temperature, owner_name, supervisor_name, field_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          (i % kabupatenJatim.length) + 1, 
+          `${crop.crop.charAt(0).toUpperCase() + crop.crop.slice(1)} Field ${String.fromCharCode(65 + (i % 5))}-${Math.floor(i/5) + 1}`,
+          kabupaten.name,
+          `Desa Sukamaju RT ${Math.floor(Math.random() * 10) + 1}, Kec. ${kabupaten.name}`,
+          coordBase.lat + (Math.random() - 0.5) * 0.2,
+          coordBase.lng + (Math.random() - 0.5) * 0.2,
+          crop.area + (Math.random() - 0.5) * 5,
+          crop.crop, crop.variety,
+          plantingDate.toISOString().split('T')[0],
+          expectedHarvest.toISOString().split('T')[0],
+          crop.growthStage,
+          Math.random() * 25 + 70,
+          Math.random() * 0.4 + 0.4,
+          Math.random() * 30 + 45,
+          Math.random() * 8 + 26,
+          `Kelompok Tani ${kabupaten.name}`,
+          `Supervisor ${Math.floor(Math.random() * 5) + 1}`,
+          'active'
+        ]
+      );
+    }
+    
+    console.log('✅ Agricultural fields seeded');
+  });
+}
+
+async function seedCropActivities() {
+  return await withConnection(async (connection) => {
+    console.log('Seeding crop activities...');
+    
+    // Get fields
+    const [fields] = await connection.execute('SELECT id, user_id, field_name, crop_type FROM agricultural_fields');
+    
+    const activities = [
+      { type: 'planting', title: 'Penanaman Bibit', duration: 8, cost: [8000000, 15000000] },
+      { type: 'fertilizing', title: 'Aplikasi Pupuk NPK', duration: 4, cost: [3000000, 8000000] },
+      { type: 'pest_control', title: 'Pengendalian Hama Terpadu', duration: 3, cost: [2000000, 6000000] },
+      { type: 'irrigation', title: 'Sistem Irigasi Tetes', duration: 6, cost: [4000000, 10000000] },
+      { type: 'monitoring', title: 'Monitoring Kesehatan Tanaman', duration: 2, cost: [500000, 1500000] },
+      { type: 'harvesting', title: 'Panen dan Pasca Panen', duration: 12, cost: [5000000, 12000000] }
+    ];
+    
+    for (const field of fields) {
+      const numActivities = Math.floor(Math.random() * 4) + 2; // 2-5 activities per field
+      
+      for (let i = 0; i < numActivities; i++) {
+        const activity = activities[i % activities.length];
+        const scheduledDate = new Date();
+        scheduledDate.setDate(scheduledDate.getDate() - Math.floor(Math.random() * 60) + Math.floor(Math.random() * 30));
+        
+        const isCompleted = Math.random() > 0.4;
+        const cost = Math.floor(Math.random() * (activity.cost[1] - activity.cost[0]) + activity.cost[0]);
+        
+        const materials = [
+          { name: getDefaultMaterial(activity.type), quantity: Math.floor(Math.random() * 100) + 50, unit: 'kg', cost: cost * 0.6 },
+          { name: 'Material Pendukung', quantity: Math.floor(Math.random() * 50) + 20, unit: 'kg', cost: cost * 0.2 }
+        ];
+        
+        const equipment = getDefaultEquipment(activity.type);
         
         await connection.execute(
-          `INSERT INTO agricultural_fields (
-            user_id, field_name, kabupaten, location_address, coordinates_lat, 
-            coordinates_lng, area_hectares, crop_type, crop_variety, planting_date,
-            expected_harvest_date, growth_stage, health_score, current_ndvi,
-            owner_name, supervisor_name, field_status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO crop_activities (
+            user_id, field_id, activity_type, activity_title, activity_description,
+            scheduled_date, completed_date, duration_hours, area_hectares, 
+            materials_used, equipment_used, workers_count, supervisor_name, 
+            total_cost, activity_status, priority_level, weather_conditions, 
+            activity_notes, quality_score
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            i + 1, 
-            `${crop.crop.charAt(0).toUpperCase() + crop.crop.slice(1)} Field ${String.fromCharCode(65 + j)}-${i + 1}`,
-            kabupaten.name,
-            `Desa Sukamaju, Kec. ${kabupaten.name}`,
-            baseCoordinates.malang.lat + (Math.random() - 0.5) * 0.1,
-            baseCoordinates.malang.lng + (Math.random() - 0.5) * 0.1,
-            crop.area + (Math.random() - 0.5) * 5,
-            crop.crop, crop.variety,
-            plantingDate.toISOString().split('T')[0],
-            expectedHarvest.toISOString().split('T')[0],
-            ['vegetative', 'flowering', 'fruiting'][Math.floor(Math.random() * 3)],
-            Math.random() * 20 + 75,
-            Math.random() * 0.3 + 0.5,
-            'Kelompok Tani Makmur',
-            `Pak Supervisor ${j + 1}`,
-            'active'
+            field.user_id, field.id, activity.type,
+            `${activity.title} - ${field.field_name}`,
+            `${activity.title} untuk optimalisasi pertumbuhan tanaman ${field.crop_type}`,
+            scheduledDate.toISOString().split('T')[0],
+            isCompleted ? scheduledDate.toISOString().split('T')[0] : null,
+            activity.duration,
+            Math.random() * 5 + 1,
+            JSON.stringify(materials),
+            JSON.stringify(equipment),
+            Math.floor(Math.random() * 8) + 2,
+            `Supervisor ${Math.floor(Math.random() * 5) + 1}`,
+            cost,
+            isCompleted ? 'completed' : Math.random() > 0.7 ? 'ongoing' : 'planned',
+            ['low', 'normal', 'high'][Math.floor(Math.random() * 3)],
+            ['Kondisi cuaca normal', 'Cuaca berawan', 'Kondisi cerah'][Math.floor(Math.random() * 3)],
+            `Aktivitas ${activity.title} dilaksanakan sesuai SOP`,
+            isCompleted ? Math.random() * 20 + 80 : null
           ]
         );
       }
     }
     
-    console.log('✓ Agricultural fields seeded');
+    console.log('✅ Crop activities seeded');
+  });
+}
+
+function getDefaultMaterial(activityType) {
+  const materials = {
+    planting: 'Bibit berkualitas tinggi',
+    fertilizing: 'Pupuk NPK 15-15-15',
+    irrigation: 'Air irigasi bersih',
+    pest_control: 'Pestisida organik',
+    harvesting: 'Karung panen',
+    monitoring: 'Alat ukur pH'
+  };
+  return materials[activityType] || 'Material umum pertanian';
+}
+
+function getDefaultEquipment(activityType) {
+  const equipment = {
+    planting: ['Hand tractor', 'Alat tanam manual', 'Cangkul'],
+    fertilizing: ['Spreader pupuk', 'Sprayer', 'Ember'],
+    irrigation: ['Pompa air', 'Selang irigasi', 'Timer otomatis'],
+    pest_control: ['Sprayer motorized', 'APD lengkap', 'Masker'],
+    harvesting: ['Sabit', 'Combine harvester mini', 'Karung'],
+    monitoring: ['GPS handheld', 'Soil tester', 'pH meter digital']
+  };
+  return equipment[activityType] || ['Alat umum pertanian'];
+}
+
+async function seedSupplyChainOrders() {
+  return await withConnection(async (connection) => {
+    console.log('Seeding supply chain orders...');
+    
+    const [suppliers] = await connection.execute('SELECT id, supplier_name FROM suppliers');
+    const [users] = await connection.execute('SELECT id FROM users LIMIT 10');
+    const [items] = await connection.execute('SELECT id, item_name, unit_price FROM supply_chain_items');
+    
+    for (let i = 0; i < 30; i++) {
+      const supplier = suppliers[Math.floor(Math.random() * suppliers.length)];
+      const user = users[Math.floor(Math.random() * users.length)];
+      const orderDate = new Date();
+      orderDate.setDate(orderDate.getDate() - Math.floor(Math.random() * 90));
+      
+      const expectedDelivery = new Date(orderDate);
+      expectedDelivery.setDate(expectedDelivery.getDate() + Math.floor(Math.random() * 14) + 3);
+      
+      const orderNumber = `ORD-${orderDate.getFullYear()}-${String(i + 1).padStart(4, '0')}`;
+      
+      // Insert order
+      const [orderResult] = await connection.execute(
+        `INSERT INTO supply_chain_orders (
+          order_number, supplier_id, user_id, order_date, expected_delivery_date,
+          order_status, payment_status, priority_level, order_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          orderNumber, supplier.id, user.id, 
+          orderDate.toISOString().split('T')[0],
+          expectedDelivery.toISOString().split('T')[0],
+          ['pending', 'confirmed', 'shipped', 'delivered'][Math.floor(Math.random() * 4)],
+          ['pending', 'paid'][Math.floor(Math.random() * 2)],
+          ['normal', 'high', 'urgent'][Math.floor(Math.random() * 3)],
+          `Order untuk keperluan operasional ${supplier.supplier_name}`
+        ]
+      );
+      
+      const orderId = orderResult.insertId;
+      let totalAmount = 0;
+      
+      // Add 1-4 items per order
+      const numItems = Math.floor(Math.random() * 4) + 1;
+      for (let j = 0; j < numItems; j++) {
+        const item = items[Math.floor(Math.random() * items.length)];
+        const quantity = Math.floor(Math.random() * 100) + 10;
+        const unitPrice = item.unit_price;
+        
+        await connection.execute(
+          `INSERT INTO supply_chain_order_items (
+            order_id, item_id, quantity, unit_price, delivered_quantity, item_status
+          ) VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            orderId, item.id, quantity, unitPrice, 
+            Math.random() > 0.5 ? quantity : Math.floor(quantity * 0.8),
+            ['pending', 'partial', 'delivered'][Math.floor(Math.random() * 3)]
+          ]
+        );
+        
+        totalAmount += quantity * unitPrice;
+      }
+      
+      // Update order total
+      await connection.execute(
+        'UPDATE supply_chain_orders SET total_amount = ? WHERE id = ?',
+        [totalAmount, orderId]
+      );
+    }
+    
+    console.log('✅ Supply chain orders seeded');
+  });
+}
+
+async function seedInventoryMovements() {
+  return await withConnection(async (connection) => {
+    console.log('Seeding inventory movements...');
+    
+    const [items] = await connection.execute('SELECT id, current_stock FROM supply_chain_items');
+    const [users] = await connection.execute('SELECT id FROM users LIMIT 5');
+    
+    for (const item of items) {
+      const numMovements = Math.floor(Math.random() * 10) + 5; // 5-14 movements per item
+      let currentStock = 0;
+      
+      for (let i = 0; i < numMovements; i++) {
+        const movementDate = new Date();
+        movementDate.setDate(movementDate.getDate() - (numMovements - i) * 7);
+        
+        const movementType = i < 3 ? 'in' : ['in', 'out', 'adjustment'][Math.floor(Math.random() * 3)];
+        const referenceType = movementType === 'in' ? 'purchase' : 
+                             movementType === 'out' ? 'consumption' : 'adjustment';
+        
+        const quantity = movementType === 'in' ? 
+                        Math.floor(Math.random() * 500) + 100 :
+                        Math.floor(Math.random() * 100) + 10;
+        
+        const previousStock = currentStock;
+        currentStock = movementType === 'in' ? currentStock + quantity : 
+                      movementType === 'out' ? Math.max(0, currentStock - quantity) : 
+                      quantity;
+        
+        const unitCost = Math.floor(Math.random() * 50000) + 10000;
+        
+        await connection.execute(
+          `INSERT INTO inventory_movements (
+            item_id, movement_type, quantity, reference_type, previous_stock,
+            new_stock, unit_cost, total_cost, movement_date, notes, created_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            item.id, movementType, quantity, referenceType, previousStock,
+            currentStock, unitCost, quantity * unitCost,
+            movementDate.toISOString().split('T')[0],
+            `${movementType === 'in' ? 'Penerimaan' : movementType === 'out' ? 'Pengeluaran' : 'Penyesuaian'} stok`,
+            users[Math.floor(Math.random() * users.length)].id
+          ]
+        );
+      }
+      
+      // Update final stock
+      await connection.execute(
+        'UPDATE supply_chain_items SET current_stock = ? WHERE id = ?',
+        [currentStock, item.id]
+      );
+    }
+    
+    console.log('✅ Inventory movements seeded');
   });
 }
 
@@ -652,73 +944,10 @@ async function seedSatelliteAndWeatherData() {
         await connection.query(weatherSQL, [weatherValues]);
       }
       
-      console.log(`✓ Batch ${Math.floor(i/batchSize) + 1} completed`);
+      console.log(`✅ Batch ${Math.floor(i/batchSize) + 1} completed`);
     }
     
-    console.log('✓ Satellite and weather data seeded');
-  });
-}
-
-async function seedCropActivities() {
-  return await withConnection(async (connection) => {
-    console.log('Seeding crop activities...');
-    
-    // Get fields
-    const [fields] = await connection.execute('SELECT id, user_id, field_name, crop_type FROM agricultural_fields LIMIT 20');
-    
-    const activities = [
-      { type: 'planting', title: 'Penanaman Bibit', duration: 8, cost: [10000000, 20000000] },
-      { type: 'fertilizing', title: 'Aplikasi Pupuk', duration: 4, cost: [5000000, 15000000] },
-      { type: 'pest_control', title: 'Pengendalian Hama', duration: 3, cost: [3000000, 12000000] }
-    ];
-    
-    const activityValues = [];
-    
-    for (const field of fields) {
-      for (let i = 0; i < 3; i++) {
-        const activity = activities[i % activities.length];
-        const scheduledDate = new Date();
-        scheduledDate.setDate(scheduledDate.getDate() - Math.floor(Math.random() * 30));
-        
-        const isCompleted = Math.random() > 0.3;
-        const cost = Math.floor(Math.random() * (activity.cost[1] - activity.cost[0]) + activity.cost[0]);
-        
-        activityValues.push([
-          field.user_id, field.id, activity.type,
-          `${activity.title} - ${field.field_name}`,
-          `${activity.title} untuk tanaman ${field.crop_type}`,
-          scheduledDate.toISOString().split('T')[0],
-          isCompleted ? scheduledDate.toISOString().split('T')[0] : null,
-          activity.duration,
-          Math.random() * 5 + 1,
-          JSON.stringify([{ name: 'Material Utama', quantity: 100, unit: 'kg' }]),
-          JSON.stringify(['Alat Utama', 'Alat Bantu']),
-          Math.floor(Math.random() * 8) + 2,
-          `Supervisor ${Math.floor(Math.random() * 3) + 1}`,
-          cost,
-          isCompleted ? 'completed' : Math.random() > 0.7 ? 'ongoing' : 'planned',
-          ['normal', 'high'][Math.floor(Math.random() * 2)],
-          'Kondisi normal',
-          'Catatan aktivitas',
-          isCompleted ? Math.random() * 20 + 80 : null
-        ]);
-      }
-    }
-    
-    if (activityValues.length > 0) {
-      const sql = `
-        INSERT INTO crop_activities (
-          user_id, field_id, activity_type, activity_title, activity_description,
-          scheduled_date, completed_date, duration_hours, area_hectares, 
-          materials_used, equipment_used, workers_count, supervisor_name, 
-          total_cost, activity_status, priority_level, weather_conditions, 
-          activity_notes, quality_score
-        ) VALUES ?
-      `;
-      await connection.query(sql, [activityValues]);
-    }
-    
-    console.log('✓ Crop activities seeded');
+    console.log('✅ Satellite and weather data seeded');
   });
 }
 
@@ -729,14 +958,16 @@ async function seedSystemAlerts() {
     const alerts = [
       { type: 'weather', severity: 'medium', title: 'Potensi Hujan Lebat', message: 'Prediksi hujan 20-30mm dalam 6 jam ke depan' },
       { type: 'satellite', severity: 'low', title: 'NDVI Menurun Sedikit', message: 'Penurunan NDVI terdeteksi di beberapa area' },
-      { type: 'system', severity: 'info', title: 'Update Data Satelit', message: 'Data terbaru berhasil diproses' }
+      { type: 'system', severity: 'info', title: 'Update Data Satelit', message: 'Data terbaru berhasil diproses' },
+      { type: 'inventory', severity: 'high', title: 'Stok Rendah Pupuk NPK', message: 'Stok pupuk NPK di bawah batas minimum' },
+      { type: 'crop', severity: 'medium', title: 'Deteksi Hama Potensial', message: 'Pola cuaca mendukung perkembangan hama wereng' }
     ];
     
-    for (let i = 0; i < 10; i++) {
-      const kabupaten = kabupatenJatim[i];
+    for (let i = 0; i < 30; i++) {
+      const kabupaten = kabupatenJatim[i % kabupatenJatim.length];
       const alert = alerts[i % alerts.length];
       const alertTime = new Date();
-      alertTime.setHours(alertTime.getHours() - Math.floor(Math.random() * 48));
+      alertTime.setHours(alertTime.getHours() - Math.floor(Math.random() * 72));
       
       await connection.execute(`
         INSERT INTO system_alerts (
@@ -746,13 +977,14 @@ async function seedSystemAlerts() {
       `, [
         alert.type, alert.severity, alert.title, alert.message,
         kabupaten.name, `Kecamatan ${kabupaten.name}`,
-        'Monitoring dan tindak lanjut sesuai prosedur',
-        alert.severity === 'high' ? 80 : alert.severity === 'medium' ? 60 : 40,
+        'Monitoring dan tindak lanjut sesuai SOP',
+        alert.severity === 'critical' ? 90 : alert.severity === 'high' ? 80 : 
+        alert.severity === 'medium' ? 60 : alert.severity === 'low' ? 40 : 20,
         alertTime
       ]);
     }
     
-    console.log('✓ System alerts seeded');
+    console.log('✅ System alerts seeded');
   });
 }
 
@@ -785,7 +1017,7 @@ async function seedMitraPartners() {
       ]);
     }
     
-    console.log('✓ Mitra partners seeded');
+    console.log('✅ Mitra partners seeded');
   });
 }
 
@@ -793,7 +1025,7 @@ async function seedUserSettings() {
   return await withConnection(async (connection) => {
     console.log('Seeding user settings...');
     
-    const [users] = await connection.execute('SELECT id FROM users LIMIT 5');
+    const [users] = await connection.execute('SELECT id FROM users LIMIT 10');
     const defaultSettings = {
       notifications: { emailNotifications: true, pushNotifications: true, weatherAlerts: true },
       privacy: { profileVisibility: 'private', dataSharing: false, analyticsOptIn: true },
@@ -811,16 +1043,16 @@ async function seedUserSettings() {
       }
     }
     
-    console.log('✓ User settings seeded');
+    console.log('✅ User settings seeded');
   });
 }
 
 async function main() {
-  console.log('🌱 Starting SAMIKNA Optimized Database Seeding...');
+  console.log('🌱 Starting SAMIKNA Enhanced Database Seeding...');
   console.log('================================================');
   
   try {
-    console.log('\n📊 Creating database schema...');
+    console.log('\n📊 Creating enhanced database schema...');
     await createTables();
     
     console.log('\n👥 Seeding users...');
@@ -829,17 +1061,23 @@ async function main() {
     console.log('\n🏢 Seeding suppliers...');
     await seedSuppliers();
     
-    console.log('\n📦 Seeding inventory...');
+    console.log('\n📦 Seeding inventory items...');
     await seedSupplyChainItems();
     
-    console.log('\n🌾 Seeding fields...');
+    console.log('\n🌾 Seeding agricultural fields...');
     await seedAgriculturalFields();
-    
-    console.log('\n🛰️ Seeding satellite & weather data...');
-    await seedSatelliteAndWeatherData();
     
     console.log('\n📋 Seeding crop activities...');
     await seedCropActivities();
+    
+    console.log('\n🚚 Seeding supply chain orders...');
+    await seedSupplyChainOrders();
+    
+    console.log('\n📈 Seeding inventory movements...');
+    await seedInventoryMovements();
+    
+    console.log('\n🛰️ Seeding satellite & weather data...');
+    await seedSatelliteAndWeatherData();
     
     console.log('\n🚨 Seeding system alerts...');
     await seedSystemAlerts();
@@ -851,7 +1089,7 @@ async function main() {
     await seedUserSettings();
     
     console.log('\n================================================');
-    console.log('🎉 SAMIKNA Database seeding completed successfully!');
+    console.log('🎉 SAMIKNA Enhanced Database seeding completed successfully!');
     console.log('================================================');
     
     console.log('\n🔐 Sample Login Credentials:');
@@ -861,16 +1099,19 @@ async function main() {
     });
     console.log('... and 25 more kabupaten with same pattern');
     
-    console.log('\n✨ Features Available:');
-    console.log('=====================');
+    console.log('\n✨ Enhanced Features Available:');
+    console.log('===============================');
     console.log('🛰️ Satellite Monitoring (30 days data)');
     console.log('🌦️ Weather Integration (BMKG)');
-    console.log('🌾 Crop Management System');
-    console.log('📦 Supply Chain Management');
-    console.log('🚨 Smart Alert System');
-    console.log('📊 Analytics & Reports');
+    console.log('🌾 Advanced Crop Management');
+    console.log('📦 Complete Supply Chain System');
+    console.log('📈 Inventory Movement Tracking');
+    console.log('🚚 Order Management & Tracking');
+    console.log('🚨 Intelligent Alert System');
+    console.log('📊 Comprehensive Analytics');
     console.log('👥 User Management');
     console.log('🤝 Partner Network');
+    console.log('⚙️ User Settings & Preferences');
     
     console.log('\n🚀 Ready to run: npm run dev');
     
@@ -881,7 +1122,7 @@ async function main() {
   }
 }
 
-// Run the optimized seeder
+// Run the enhanced seeder
 if (require.main === module) {
   main();
 }
@@ -892,8 +1133,10 @@ module.exports = {
   seedSuppliers,
   seedSupplyChainItems,
   seedAgriculturalFields,
-  seedSatelliteAndWeatherData,
   seedCropActivities,
+  seedSupplyChainOrders,
+  seedInventoryMovements,
+  seedSatelliteAndWeatherData,
   seedSystemAlerts,
   seedMitraPartners,
   seedUserSettings

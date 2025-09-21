@@ -191,63 +191,575 @@ export async function updateUserProfile(userId, profileData) {
   }
 }
 
-// ===================== USER SETTINGS =====================
+// ===================== AGRICULTURAL FIELDS MANAGEMENT =====================
 
-export async function getUserSettings(userId, settingType = null) {
+export async function getFieldsByUser(userId, kabupaten = null) {
   let connection = null;
   try {
     connection = await connectDB();
     
-    let query = 'SELECT setting_type, setting_key, setting_value FROM user_settings WHERE user_id = ?';
+    let query = `
+      SELECT 
+        id, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
+        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
+        growth_stage, health_score, current_ndvi, current_soil_moisture, 
+        current_temperature, next_activity, owner_name, supervisor_name,
+        field_status, field_notes, created_at, updated_at
+      FROM agricultural_fields 
+      WHERE user_id = ?
+    `;
+    
     let params = [userId];
     
-    if (settingType) {
-      query += ' AND setting_type = ?';
-      params.push(settingType);
+    if (kabupaten) {
+      query += ' AND kabupaten = ?';
+      params.push(kabupaten);
     }
     
-    const [settings] = await connection.execute(query, params);
+    query += ' ORDER BY created_at DESC';
     
-    const organizedSettings = {};
-    for (const setting of settings) {
-      if (!organizedSettings[setting.setting_type]) {
-        organizedSettings[setting.setting_type] = {};
-      }
-      organizedSettings[setting.setting_type][setting.setting_key] = JSON.parse(setting.setting_value);
-    }
+    const [results] = await connection.execute(query, params);
     
-    return { success: true, settings: organizedSettings };
+    return { success: true, data: results };
     
   } catch (error) {
-    console.error('Error fetching user settings:', error);
+    console.error('Error fetching agricultural fields:', error);
     return { success: false, error: error.message };
   } finally {
     if (connection) await connection.end();
   }
 }
 
-export async function updateUserSettings(userId, settingType, settings) {
+export async function getFieldById(fieldId, userId = null) {
   let connection = null;
   try {
     connection = await connectDB();
     
+    let query = 'SELECT * FROM agricultural_fields WHERE id = ?';
+    let params = [fieldId];
+    
+    if (userId) {
+      query += ' AND user_id = ?';
+      params.push(userId);
+    }
+    
+    const [results] = await connection.execute(query, params);
+    
+    return results.length > 0 ? { success: true, data: results[0] } : { success: false };
+    
+  } catch (error) {
+    console.error('Error fetching field:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function createField(userId, fieldData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
+      area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
+      growth_stage, owner_name, supervisor_name, field_notes
+    } = fieldData;
+    
+    const [result] = await connection.execute(
+      `INSERT INTO agricultural_fields (
+        user_id, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
+        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
+        growth_stage, owner_name, supervisor_name, field_notes, field_status,
+        health_score, current_ndvi, current_soil_moisture, current_temperature
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
+        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
+        growth_stage || 'land_preparation', owner_name, supervisor_name, field_notes, 'active',
+        85.0, 0.65, 55.0, 28.0 // Default values
+      ]
+    );
+    
+    return { success: true, fieldId: result.insertId, message: 'Field created successfully' };
+    
+  } catch (error) {
+    console.error('Error creating field:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function updateField(fieldId, userId, fieldData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      field_name, location_address, coordinates_lat, coordinates_lng,
+      area_hectares, crop_variety, expected_harvest_date, growth_stage,
+      owner_name, supervisor_name, field_notes, field_status
+    } = fieldData;
+    
+    await connection.execute(
+      `UPDATE agricultural_fields SET 
+        field_name = ?, location_address = ?, coordinates_lat = ?, coordinates_lng = ?,
+        area_hectares = ?, crop_variety = ?, expected_harvest_date = ?, growth_stage = ?,
+        owner_name = ?, supervisor_name = ?, field_notes = ?, field_status = ?,
+        updated_at = NOW()
+       WHERE id = ? AND user_id = ?`,
+      [
+        field_name, location_address, coordinates_lat, coordinates_lng,
+        area_hectares, crop_variety, expected_harvest_date, growth_stage,
+        owner_name, supervisor_name, field_notes, field_status || 'active',
+        fieldId, userId
+      ]
+    );
+    
+    return { success: true, message: 'Field updated successfully' };
+    
+  } catch (error) {
+    console.error('Error updating field:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteField(fieldId, userId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    await connection.execute(
+      'DELETE FROM agricultural_fields WHERE id = ? AND user_id = ?',
+      [fieldId, userId]
+    );
+    
+    return { success: true, message: 'Field deleted successfully' };
+    
+  } catch (error) {
+    console.error('Error deleting field:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// ===================== CROP ACTIVITIES MANAGEMENT =====================
+
+export async function getCropActivities(userId, fieldId = null, dateRange = 30, limit = 100) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    let query = `
+      SELECT 
+        ca.*, af.field_name, af.crop_type
+      FROM crop_activities ca
+      LEFT JOIN agricultural_fields af ON ca.field_id = af.id
+      WHERE ca.user_id = ?
+    `;
+    
+    let params = [userId];
+    
+    if (fieldId) {
+      query += ' AND ca.field_id = ?';
+      params.push(fieldId);
+    }
+    
+    if (dateRange) {
+      query += ' AND ca.scheduled_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)';
+      params.push(dateRange);
+    }
+    
+    query += ' ORDER BY ca.scheduled_date DESC, ca.created_at DESC LIMIT ?';
+    params.push(limit);
+    
+    const [results] = await connection.execute(query, params);
+    
+    // Parse JSON fields
+    const activities = results.map(activity => ({
+      ...activity,
+      materials_used: activity.materials_used ? JSON.parse(activity.materials_used) : [],
+      equipment_used: activity.equipment_used ? JSON.parse(activity.equipment_used) : []
+    }));
+    
+    return { success: true, data: activities };
+    
+  } catch (error) {
+    console.error('Error fetching crop activities:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function createCropActivity(userId, activityData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      field_id, activity_type, activity_title, activity_description, scheduled_date,
+      duration_hours, area_hectares, materials_used, equipment_used, workers_count,
+      supervisor_name, total_cost, priority_level, weather_conditions,
+      activity_notes
+    } = activityData;
+    
+    const [result] = await connection.execute(
+      `INSERT INTO crop_activities (
+        user_id, field_id, activity_type, activity_title, activity_description,
+        scheduled_date, duration_hours, area_hectares, materials_used, equipment_used,
+        workers_count, supervisor_name, total_cost, priority_level,
+        weather_conditions, activity_notes, activity_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId, field_id, activity_type, activity_title, activity_description,
+        scheduled_date, duration_hours, area_hectares, 
+        JSON.stringify(materials_used || []), JSON.stringify(equipment_used || []),
+        workers_count || 1, supervisor_name, total_cost, priority_level || 'normal',
+        weather_conditions, activity_notes, 'planned'
+      ]
+    );
+    
+    return { success: true, activityId: result.insertId, message: 'Activity created successfully' };
+    
+  } catch (error) {
+    console.error('Error creating crop activity:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function updateCropActivity(activityId, userId, activityData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      activity_title, activity_description, scheduled_date, completed_date,
+      duration_hours, area_hectares, materials_used, equipment_used, workers_count,
+      supervisor_name, total_cost, activity_status, priority_level,
+      weather_conditions, activity_notes, quality_score
+    } = activityData;
+    
+    await connection.execute(
+      `UPDATE crop_activities SET 
+        activity_title = ?, activity_description = ?, scheduled_date = ?, completed_date = ?,
+        duration_hours = ?, area_hectares = ?, materials_used = ?, equipment_used = ?,
+        workers_count = ?, supervisor_name = ?, total_cost = ?, activity_status = ?,
+        priority_level = ?, weather_conditions = ?, activity_notes = ?, quality_score = ?,
+        updated_at = NOW()
+       WHERE id = ? AND user_id = ?`,
+      [
+        activity_title, activity_description, scheduled_date, completed_date,
+        duration_hours, area_hectares, JSON.stringify(materials_used || []), 
+        JSON.stringify(equipment_used || []), workers_count, supervisor_name, 
+        total_cost, activity_status, priority_level, weather_conditions, 
+        activity_notes, quality_score, activityId, userId
+      ]
+    );
+    
+    return { success: true, message: 'Activity updated successfully' };
+    
+  } catch (error) {
+    console.error('Error updating crop activity:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteCropActivity(activityId, userId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    await connection.execute(
+      'DELETE FROM crop_activities WHERE id = ? AND user_id = ?',
+      [activityId, userId]
+    );
+    
+    return { success: true, message: 'Activity deleted successfully' };
+    
+  } catch (error) {
+    console.error('Error deleting crop activity:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// ===================== SUPPLY CHAIN MANAGEMENT =====================
+
+export async function getInventoryItems(userId, category = null, status = null, limit = 100) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    let query = `
+      SELECT 
+        sci.*, s.supplier_name, s.contact_person, s.rating
+      FROM supply_chain_items sci
+      LEFT JOIN suppliers s ON sci.supplier_id = s.id
+      WHERE 1=1
+    `;
+    
+    let params = [];
+    
+    if (category && category !== 'all') {
+      query += ' AND sci.category = ?';
+      params.push(category);
+    }
+    
+    if (status && status !== 'all') {
+      query += ' AND sci.stock_status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY sci.updated_at DESC LIMIT ?';
+    params.push(limit);
+    
+    const [results] = await connection.execute(query, params);
+    
+    return { success: true, data: results };
+    
+  } catch (error) {
+    console.error('Error fetching inventory items:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function createInventoryItem(itemData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      item_name, item_code, sku, category, supplier_id, current_stock,
+      min_stock_level, max_stock_level, unit_of_measure, unit_price,
+      storage_location, expiry_date, quality_grade
+    } = itemData;
+    
+    const [result] = await connection.execute(
+      `INSERT INTO supply_chain_items (
+        item_name, item_code, sku, category, supplier_id, current_stock,
+        min_stock_level, max_stock_level, unit_of_measure, unit_price,
+        storage_location, expiry_date, quality_grade, tracking_code, barcode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item_name, item_code, sku, category, supplier_id, current_stock,
+        min_stock_level, max_stock_level, unit_of_measure, unit_price,
+        storage_location, expiry_date, quality_grade || 'A',
+        `TRK-${item_code}`, `BAR-${item_code}`
+      ]
+    );
+    
+    return { success: true, itemId: result.insertId, message: 'Item created successfully' };
+    
+  } catch (error) {
+    console.error('Error creating inventory item:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function updateInventoryItem(itemId, itemData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const {
+      item_name, current_stock, min_stock_level, max_stock_level,
+      unit_price, storage_location, expiry_date, quality_grade, item_status
+    } = itemData;
+    
+    await connection.execute(
+      `UPDATE supply_chain_items SET 
+        item_name = ?, current_stock = ?, min_stock_level = ?, max_stock_level = ?,
+        unit_price = ?, storage_location = ?, expiry_date = ?, quality_grade = ?,
+        item_status = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [
+        item_name, current_stock, min_stock_level, max_stock_level,
+        unit_price, storage_location, expiry_date, quality_grade,
+        item_status || 'active', itemId
+      ]
+    );
+    
+    return { success: true, message: 'Item updated successfully' };
+    
+  } catch (error) {
+    console.error('Error updating inventory item:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function deleteInventoryItem(itemId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    await connection.execute('DELETE FROM supply_chain_items WHERE id = ?', [itemId]);
+    
+    return { success: true, message: 'Item deleted successfully' };
+    
+  } catch (error) {
+    console.error('Error deleting inventory item:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function getSuppliers(category = null, status = 'active') {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    let query = 'SELECT * FROM suppliers WHERE 1=1';
+    let params = [];
+    
+    if (category && category !== 'all') {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+    
+    if (status && status !== 'all') {
+      query += ' AND supplier_status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY rating DESC, supplier_name ASC';
+    
+    const [results] = await connection.execute(query, params);
+    
+    // Parse JSON fields
+    const suppliers = results.map(supplier => ({
+      ...supplier,
+      certifications: supplier.certifications ? JSON.parse(supplier.certifications) : []
+    }));
+    
+    return { success: true, data: suppliers };
+    
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function getSupplyChainOrders(userId, status = null, limit = 50) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    let query = `
+      SELECT 
+        sco.*, s.supplier_name, s.contact_person, s.phone
+      FROM supply_chain_orders sco
+      LEFT JOIN suppliers s ON sco.supplier_id = s.id
+      WHERE sco.user_id = ?
+    `;
+    
+    let params = [userId];
+    
+    if (status && status !== 'all') {
+      query += ' AND sco.order_status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY sco.order_date DESC LIMIT ?';
+    params.push(limit);
+    
+    const [orders] = await connection.execute(query, params);
+    
+    // Get order items for each order
+    for (let order of orders) {
+      const [items] = await connection.execute(`
+        SELECT 
+          soi.*, sci.item_name, sci.unit_of_measure
+        FROM supply_chain_order_items soi
+        LEFT JOIN supply_chain_items sci ON soi.item_id = sci.id
+        WHERE soi.order_id = ?
+      `, [order.id]);
+      
+      order.items = items;
+    }
+    
+    return { success: true, data: orders };
+    
+  } catch (error) {
+    console.error('Error fetching supply chain orders:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+export async function createSupplyChainOrder(userId, orderData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
     await connection.beginTransaction();
     
-    for (const [key, value] of Object.entries(settings)) {
+    const {
+      supplier_id, order_date, expected_delivery_date, priority_level,
+      order_notes, items
+    } = orderData;
+    
+    // Generate order number
+    const orderNumber = `ORD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    
+    // Create order
+    const [orderResult] = await connection.execute(
+      `INSERT INTO supply_chain_orders (
+        order_number, supplier_id, user_id, order_date, expected_delivery_date,
+        priority_level, order_notes, order_status, payment_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        orderNumber, supplier_id, userId, order_date, expected_delivery_date,
+        priority_level || 'normal', order_notes, 'pending', 'pending'
+      ]
+    );
+    
+    const orderId = orderResult.insertId;
+    let totalAmount = 0;
+    
+    // Add order items
+    for (const item of items) {
+      const itemTotal = item.quantity * item.unit_price;
+      totalAmount += itemTotal;
+      
       await connection.execute(
-        `INSERT INTO user_settings (user_id, setting_type, setting_key, setting_value) 
-         VALUES (?, ?, ?, ?) 
-         ON DUPLICATE KEY UPDATE setting_value = ?, updated_at = NOW()`,
-        [userId, settingType, key, JSON.stringify(value), JSON.stringify(value)]
+        `INSERT INTO supply_chain_order_items (
+          order_id, item_id, quantity, unit_price, item_status
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [orderId, item.item_id, item.quantity, item.unit_price, 'pending']
       );
     }
     
+    // Update order total
+    await connection.execute(
+      'UPDATE supply_chain_orders SET total_amount = ? WHERE id = ?',
+      [totalAmount, orderId]
+    );
+    
     await connection.commit();
-    return { success: true, message: 'Settings updated successfully' };
+    return { success: true, orderId, orderNumber, message: 'Order created successfully' };
     
   } catch (error) {
     if (connection) await connection.rollback();
-    console.error('Error updating user settings:', error);
+    console.error('Error creating supply chain order:', error);
     return { success: false, error: error.message };
   } finally {
     if (connection) await connection.end();
@@ -507,307 +1019,6 @@ function calculateWeatherStats(data) {
   return stats;
 }
 
-// ===================== AGRICULTURAL FIELDS =====================
-
-export async function getFieldsByUser(userId, kabupaten = null) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    let query = `
-      SELECT 
-        id, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
-        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
-        growth_stage, health_score, current_ndvi, current_soil_moisture, 
-        current_temperature, next_activity, owner_name, supervisor_name,
-        field_status, field_notes, created_at, updated_at
-      FROM agricultural_fields 
-      WHERE user_id = ?
-    `;
-    
-    let params = [userId];
-    
-    if (kabupaten) {
-      query += ' AND kabupaten = ?';
-      params.push(kabupaten);
-    }
-    
-    query += ' ORDER BY created_at DESC';
-    
-    const [results] = await connection.execute(query, params);
-    
-    return { success: true, data: results };
-    
-  } catch (error) {
-    console.error('Error fetching agricultural fields:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function getFieldById(fieldId, userId = null) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    let query = 'SELECT * FROM agricultural_fields WHERE id = ?';
-    let params = [fieldId];
-    
-    if (userId) {
-      query += ' AND user_id = ?';
-      params.push(userId);
-    }
-    
-    const [results] = await connection.execute(query, params);
-    
-    return results.length > 0 ? { success: true, data: results[0] } : { success: false };
-    
-  } catch (error) {
-    console.error('Error fetching field:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function createField(userId, fieldData) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    const {
-      field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
-      area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
-      growth_stage, owner_name, supervisor_name, field_notes
-    } = fieldData;
-    
-    const [result] = await connection.execute(
-      `INSERT INTO agricultural_fields (
-        user_id, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
-        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
-        growth_stage, owner_name, supervisor_name, field_notes, field_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId, field_name, kabupaten, location_address, coordinates_lat, coordinates_lng,
-        area_hectares, crop_type, crop_variety, planting_date, expected_harvest_date,
-        growth_stage || 'land_preparation', owner_name, supervisor_name, field_notes, 'active'
-      ]
-    );
-    
-    return { success: true, fieldId: result.insertId, message: 'Field created successfully' };
-    
-  } catch (error) {
-    console.error('Error creating field:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-// ===================== CROP ACTIVITIES =====================
-
-export async function getCropActivities(userId, fieldId = null, dateRange = 30, limit = 100) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    let query = `
-      SELECT 
-        ca.*, af.field_name, af.crop_type
-      FROM crop_activities ca
-      LEFT JOIN agricultural_fields af ON ca.field_id = af.id
-      WHERE ca.user_id = ?
-    `;
-    
-    let params = [userId];
-    
-    if (fieldId) {
-      query += ' AND ca.field_id = ?';
-      params.push(fieldId);
-    }
-    
-    if (dateRange) {
-      query += ' AND ca.scheduled_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)';
-      params.push(dateRange);
-    }
-    
-    query += ' ORDER BY ca.scheduled_date DESC, ca.created_at DESC LIMIT ?';
-    params.push(limit);
-    
-    const [results] = await connection.execute(query, params);
-    
-    // Parse JSON fields
-    const activities = results.map(activity => ({
-      ...activity,
-      materials_used: activity.materials_used ? JSON.parse(activity.materials_used) : [],
-      equipment_used: activity.equipment_used ? JSON.parse(activity.equipment_used) : []
-    }));
-    
-    return { success: true, data: activities };
-    
-  } catch (error) {
-    console.error('Error fetching crop activities:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function createCropActivity(userId, activityData) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    const {
-      field_id, activity_type, activity_title, activity_description, scheduled_date,
-      duration_hours, area_hectares, materials_used, equipment_used, workers_count,
-      supervisor_name, total_cost, priority_level, weather_conditions,
-      activity_notes
-    } = activityData;
-    
-    const [result] = await connection.execute(
-      `INSERT INTO crop_activities (
-        user_id, field_id, activity_type, activity_title, activity_description,
-        scheduled_date, duration_hours, area_hectares, materials_used, equipment_used,
-        workers_count, supervisor_name, total_cost, priority_level,
-        weather_conditions, activity_notes, activity_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId, field_id, activity_type, activity_title, activity_description,
-        scheduled_date, duration_hours, area_hectares, 
-        JSON.stringify(materials_used || []), JSON.stringify(equipment_used || []),
-        workers_count || 1, supervisor_name, total_cost, priority_level || 'normal',
-        weather_conditions, activity_notes, 'planned'
-      ]
-    );
-    
-    return { success: true, activityId: result.insertId, message: 'Activity created successfully' };
-    
-  } catch (error) {
-    console.error('Error creating crop activity:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-// ===================== SUPPLY CHAIN =====================
-
-export async function getInventoryItems(userId, category = null, status = null, limit = 100) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    let query = `
-      SELECT 
-        sci.*, s.supplier_name, s.contact_person, s.rating
-      FROM supply_chain_items sci
-      LEFT JOIN suppliers s ON sci.supplier_id = s.id
-      WHERE 1=1
-    `;
-    
-    let params = [];
-    
-    if (category && category !== 'all') {
-      query += ' AND sci.category = ?';
-      params.push(category);
-    }
-    
-    if (status && status !== 'all') {
-      query += ' AND sci.stock_status = ?';
-      params.push(status);
-    }
-    
-    query += ' ORDER BY sci.updated_at DESC LIMIT ?';
-    params.push(limit);
-    
-    const [results] = await connection.execute(query, params);
-    
-    return { success: true, data: results };
-    
-  } catch (error) {
-    console.error('Error fetching inventory items:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function getSuppliers(category = null, status = 'active') {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    let query = 'SELECT * FROM suppliers WHERE 1=1';
-    let params = [];
-    
-    if (category && category !== 'all') {
-      query += ' AND category = ?';
-      params.push(category);
-    }
-    
-    if (status && status !== 'all') {
-      query += ' AND supplier_status = ?';
-      params.push(status);
-    }
-    
-    query += ' ORDER BY rating DESC, supplier_name ASC';
-    
-    const [results] = await connection.execute(query, params);
-    
-    // Parse JSON fields
-    const suppliers = results.map(supplier => ({
-      ...supplier,
-      certifications: supplier.certifications ? JSON.parse(supplier.certifications) : []
-    }));
-    
-    return { success: true, data: suppliers };
-    
-  } catch (error) {
-    console.error('Error fetching suppliers:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
-export async function getSupplyChainOrders(userId, status = null, limit = 50) {
-  let connection = null;
-  try {
-    connection = await connectDB();
-    
-    // Simplified query without the non-existent table
-    let query = `
-      SELECT 
-        sco.*, s.supplier_name, s.contact_person, s.phone
-      FROM supply_chain_orders sco
-      LEFT JOIN suppliers s ON sco.supplier_id = s.id
-      WHERE sco.user_id = ?
-    `;
-    
-    let params = [userId];
-    
-    if (status && status !== 'all') {
-      query += ' AND sco.order_status = ?';
-      params.push(status);
-    }
-    
-    query += ' ORDER BY sco.order_date DESC LIMIT ?';
-    params.push(limit);
-    
-    const [results] = await connection.execute(query, params);
-    
-    return { success: true, data: results };
-    
-  } catch (error) {
-    console.error('Error fetching supply chain orders:', error);
-    return { success: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
-  }
-}
-
 // ===================== ALERTS & NOTIFICATIONS =====================
 
 export async function getSystemAlerts(kabupaten = null, isActive = true, limit = 20) {
@@ -959,7 +1170,8 @@ export async function testConnection() {
     const tables = [
       'users', 'user_settings', 'agricultural_fields', 'crop_activities', 
       'satellite_data', 'weather_data', 'suppliers', 'supply_chain_items',
-      'supply_chain_orders', 'system_alerts', 'mitra_partners', 'inquiries'
+      'supply_chain_orders', 'supply_chain_order_items', 'inventory_movements',
+      'system_alerts', 'mitra_partners', 'inquiries'
     ];
     
     const tableStatus = {};
@@ -973,14 +1185,14 @@ export async function testConnection() {
             exists: true,
             count: countTest[0].count
           };
-          console.log(`✓ Table ${table}: ${countTest[0].count} records`);
+          console.log(`✅ Table ${table}: ${countTest[0].count} records`);
         } else {
           tableStatus[table] = { exists: false, count: 0 };
-          console.log(`✗ Table ${table}: NOT EXISTS`);
+          console.log(`❌ Table ${table}: NOT EXISTS`);
         }
       } catch (tableError) {
         tableStatus[table] = { exists: false, error: tableError.message };
-        console.log(`✗ Table ${table}: ERROR - ${tableError.message}`);
+        console.log(`❌ Table ${table}: ERROR - ${tableError.message}`);
       }
     }
     

@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
-import { 
+import {
   HiPlus, HiSearch, HiFilter, HiCalendar, HiClock, HiLocationMarker,
   HiEye, HiPencil, HiTrash, HiCheck, HiX, HiDownload, HiRefresh,
   HiExclamation, HiInformationCircle, HiChartBar, HiTrendingUp,
   HiStar, HiPlay, HiPause, HiCamera, HiCog
 } from 'react-icons/hi';
-import { 
+import {
   FaSeedling, FaLeaf, FaWheat, FaTractor, FaFlask, FaThermometerHalf,
   FaTint, FaCloud, FaSun, FaRobot, FaMapMarkedAlt, FaClipboardList,
   FaDollarSign, FaChartLine, FaCalendarAlt, FaFileAlt
@@ -26,7 +26,9 @@ const CropManagement = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCrop, setFilterCrop] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addFormType, setAddFormType] = useState('activity'); // 'activity' or 'field'
   const [selectedActivity, setSelectedActivity] = useState(null);
+  const [selectedField, setSelectedField] = useState(null);
   const [cropData, setCropData] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -106,8 +108,33 @@ const CropManagement = () => {
     recommendations: []
   });
 
-  const handleCreateActivity = async (activityData) => {
+  const handleCreateActivity = async (formData) => {
     try {
+      const activityData = {
+        field_id: parseInt(formData.get('field_id')),
+        activity_type: formData.get('activity_type'),
+        activity_title: formData.get('activity_title'),
+        activity_description: formData.get('activity_description'),
+        scheduled_date: formData.get('scheduled_date'),
+        duration_hours: parseFloat(formData.get('duration_hours')) || 0,
+        area_hectares: parseFloat(formData.get('area_hectares')) || 0,
+        workers_count: parseInt(formData.get('workers_count')) || 1,
+        total_cost: parseFloat(formData.get('total_cost')) || 0,
+        priority_level: formData.get('priority_level'),
+        supervisor_name: formData.get('supervisor_name'),
+        weather_conditions: formData.get('weather_conditions'),
+        activity_notes: formData.get('activity_notes'),
+        materials_used: [
+          {
+            name: formData.get('material_name') || 'Material Utama',
+            quantity: parseFloat(formData.get('material_quantity')) || 100,
+            unit: formData.get('material_unit') || 'kg',
+            cost: parseFloat(formData.get('material_cost')) || 0
+          }
+        ],
+        equipment_used: (formData.get('equipment_used') || 'Alat Standar').split(',').map(e => e.trim())
+      };
+
       const response = await fetch(`/api/crop-management?userId=${user.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,8 +156,25 @@ const CropManagement = () => {
     }
   };
 
-  const handleCreateField = async (fieldData) => {
+  const handleCreateField = async (formData) => {
     try {
+      const fieldData = {
+        field_name: formData.get('field_name'),
+        kabupaten: user.kabupaten,
+        location_address: formData.get('location_address'),
+        coordinates_lat: parseFloat(formData.get('coordinates_lat')) || -7.9826,
+        coordinates_lng: parseFloat(formData.get('coordinates_lng')) || 112.6308,
+        area_hectares: parseFloat(formData.get('area_hectares')) || 0,
+        crop_type: formData.get('crop_type'),
+        crop_variety: formData.get('crop_variety'),
+        planting_date: formData.get('planting_date'),
+        expected_harvest_date: formData.get('expected_harvest_date'),
+        growth_stage: formData.get('growth_stage') || 'land_preparation',
+        owner_name: formData.get('owner_name'),
+        supervisor_name: formData.get('supervisor_name'),
+        field_notes: formData.get('field_notes')
+      };
+
       const response = await fetch(`/api/crop-management?userId=${user.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,6 +184,7 @@ const CropManagement = () => {
       const result = await response.json();
       
       if (result.success) {
+        setShowAddForm(false);
         loadCropData(); // Reload data
         alert('Field created successfully!');
       } else {
@@ -148,6 +193,108 @@ const CropManagement = () => {
     } catch (error) {
       console.error('Error creating field:', error);
       alert('Failed to create field');
+    }
+  };
+
+  const handleUpdateActivity = async (activityId, formData) => {
+    try {
+      const activityData = {
+        activity_title: formData.get('activity_title'),
+        activity_description: formData.get('activity_description'),
+        scheduled_date: formData.get('scheduled_date'),
+        completed_date: formData.get('completed_date'),
+        duration_hours: parseFloat(formData.get('duration_hours')) || 0,
+        area_hectares: parseFloat(formData.get('area_hectares')) || 0,
+        workers_count: parseInt(formData.get('workers_count')) || 1,
+        total_cost: parseFloat(formData.get('total_cost')) || 0,
+        activity_status: formData.get('activity_status'),
+        priority_level: formData.get('priority_level'),
+        supervisor_name: formData.get('supervisor_name'),
+        weather_conditions: formData.get('weather_conditions'),
+        activity_notes: formData.get('activity_notes'),
+        quality_score: parseFloat(formData.get('quality_score')) || null
+      };
+
+      const response = await fetch(`/api/crop-management?userId=${user.id}&id=${activityId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_activity', data: activityData })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setSelectedActivity(null);
+        loadCropData();
+        alert('Activity updated successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to update activity'}`);
+      }
+    } catch (error) {
+      console.error('Error updating activity:', error);
+      alert('Failed to update activity');
+    }
+  };
+
+  const handleDeleteField = async (fieldId) => {
+    if (!confirm('Are you sure you want to delete this field?')) return;
+
+    try {
+      const response = await fetch(`/api/crop-management?userId=${user.id}&id=${fieldId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'delete_field' })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        loadCropData();
+        alert('Field deleted successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to delete field'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting field:', error);
+      alert('Failed to delete field');
+    }
+  };
+
+  const handleUpdateField = async (fieldId, formData) => {
+    try {
+      const fieldData = {
+        field_name: formData.get('field_name'),
+        location_address: formData.get('location_address'),
+        coordinates_lat: parseFloat(formData.get('coordinates_lat')) || null,
+        coordinates_lng: parseFloat(formData.get('coordinates_lng')) || null,
+        area_hectares: parseFloat(formData.get('area_hectares')),
+        crop_variety: formData.get('crop_variety'),
+        expected_harvest_date: formData.get('expected_harvest_date'),
+        growth_stage: formData.get('growth_stage'),
+        owner_name: formData.get('owner_name'),
+        supervisor_name: formData.get('supervisor_name'),
+        field_notes: formData.get('field_notes'),
+        field_status: formData.get('field_status')
+      };
+
+      const response = await fetch(`/api/crop-management?userId=${user.id}&id=${fieldId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'update_field', data: fieldData })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setSelectedField(null);
+        loadCropData();
+        alert('Field updated successfully!');
+      } else {
+        alert(`Error: ${result.message || 'Failed to update field'}`);
+      }
+    } catch (error) {
+      console.error('Error updating field:', error);
+      alert('Failed to update field');
     }
   };
 
@@ -166,6 +313,27 @@ const CropManagement = () => {
     { id: 'pest_control', label: 'Pengendalian Hama', icon: FaLeaf, color: 'red' },
     { id: 'harvesting', label: 'Panen', icon: FaWheat, color: 'yellow' },
     { id: 'monitoring', label: 'Monitoring', icon: FaTractor, color: 'gray' }
+  ];
+
+  const cropTypes = [
+    { id: 'padi', label: 'Padi' },
+    { id: 'jagung', label: 'Jagung' },
+    { id: 'kedelai', label: 'Kedelai' },
+    { id: 'tebu', label: 'Tebu' },
+    { id: 'cabai', label: 'Cabai' },
+    { id: 'tomat', label: 'Tomat' },
+    { id: 'kentang', label: 'Kentang' },
+    { id: 'other', label: 'Lainnya' }
+  ];
+
+  const growthStages = [
+    { id: 'land_preparation', label: 'Persiapan Lahan' },
+    { id: 'planting', label: 'Penanaman' },
+    { id: 'vegetative', label: 'Vegetatif' },
+    { id: 'flowering', label: 'Berbunga' },
+    { id: 'fruiting', label: 'Berbuah' },
+    { id: 'mature', label: 'Matang' },
+    { id: 'harvested', label: 'Dipanen' }
   ];
 
   const getStatusColor = (status) => {
@@ -267,7 +435,6 @@ const CropManagement = () => {
         <title>Crop Management - {user?.kabupaten} | SAMIKNA</title>
         <meta name="description" content="Comprehensive crop management system with satellite monitoring and precision agriculture" />
       </Head>
-
       <DashboardLayout>
         <div className="space-y-6">
           
@@ -315,11 +482,27 @@ const CropManagement = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => {
+                      setAddFormType('activity');
+                      setShowAddForm(true);
+                    }}
                     className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-colors"
                   >
                     <HiPlus className="w-4 h-4" />
                     Add Activity
+                  </motion.button>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setAddFormType('field');
+                      setShowAddForm(true);
+                    }}
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-colors"
+                  >
+                    <HiPlus className="w-4 h-4" />
+                    Add Field
                   </motion.button>
                   
                   <button 
@@ -342,18 +525,20 @@ const CropManagement = () => {
           </motion.div>
 
           {/* Error Banner */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
-            >
-              <div className="flex items-center gap-2">
-                <HiExclamation className="w-5 h-5 text-yellow-600" />
-                <span className="text-yellow-800">Warning: Some data may be cached due to connectivity issues.</span>
-              </div>
-            </motion.div>
-          )}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <HiExclamation className="w-5 h-5 text-yellow-600" />
+                  <span className="text-yellow-800">Warning: Some data may be cached due to connectivity issues.</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -471,8 +656,13 @@ const CropManagement = () => {
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="text-center">
                           <FaThermometerHalf className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.temperature}°C</div>
-                          <div className="text-sm text-gray-600">Temperature</div>
+                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.windSpeed}km/h</div>
+                          <div className="text-sm text-gray-600">Wind Speed</div>
+                        </div>
+                        <div className="text-center">
+                          <FaSun className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.uvIndex}</div>
+                          <div className="text-sm text-gray-600">UV Index</div>
                         </div>
                         <div className="text-center">
                           <FaTint className="w-8 h-8 text-blue-500 mx-auto mb-2" />
@@ -486,13 +676,8 @@ const CropManagement = () => {
                         </div>
                         <div className="text-center">
                           <FaLeaf className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.windSpeed}km/h</div>
-                          <div className="text-sm text-gray-600">Wind Speed</div>
-                        </div>
-                        <div className="text-center">
-                          <FaSun className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.uvIndex}</div>
-                          <div className="text-sm text-gray-600">UV Index</div>
+                          <div className="text-2xl font-bold text-gray-900">{cropData.weather.current.temperature}°C</div>
+                          <div className="text-sm text-gray-600">Temperature</div>
                         </div>
                       </div>
                     </div>
@@ -637,17 +822,26 @@ const CropManagement = () => {
                             className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                           >
                             <HiEye className="w-3 h-3 inline mr-1" />
-                            View Map
+                            View
                           </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedActivity(field);
+                              setSelectedField(field);
                             }}
                             className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
                           >
                             <HiPencil className="w-3 h-3 inline mr-1" />
-                            Manage
+                            Edit
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteField(field.id);
+                            }}
+                            className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                          >
+                            <HiTrash className="w-3 h-3" />
                           </button>
                         </div>
                       </motion.div>
@@ -657,7 +851,10 @@ const CropManagement = () => {
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Fields Registered</h3>
                         <p className="text-gray-600 mb-4">Start by adding your first agricultural field to begin monitoring.</p>
                         <button
-                          onClick={() => setShowAddForm(true)}
+                          onClick={() => {
+                            setAddFormType('field');
+                            setShowAddForm(true);
+                          }}
                           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                           Add Field
@@ -707,11 +904,9 @@ const CropManagement = () => {
                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       >
                         <option value="all">All Crops</option>
-                        <option value="padi">Padi</option>
-                        <option value="jagung">Jagung</option>
-                        <option value="kedelai">Kedelai</option>
-                        <option value="tebu">Tebu</option>
-                        <option value="cabai">Cabai</option>
+                        {cropTypes.map(crop => (
+                          <option key={crop.id} value={crop.id}>{crop.label}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -811,14 +1006,33 @@ const CropManagement = () => {
                             View Details
                           </button>
                           {activity.status !== 'completed' && (
-                            <button className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium">
+                            <button 
+                              onClick={() => {
+                                // Mark as completed
+                                const formData = new FormData();
+                                formData.set('activity_status', 'completed');
+                                formData.set('completed_date', new Date().toISOString().split('T')[0]);
+                                handleUpdateActivity(activity.id, formData);
+                              }}
+                              className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                            >
                               <HiCheck className="w-3 h-3 inline mr-1" />
                               Mark Complete
                             </button>
                           )}
-                          <button className="px-4 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium">
+                          <button 
+                            onClick={() => setSelectedActivity(activity)}
+                            className="px-4 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                          >
                             <HiPencil className="w-3 h-3 inline mr-1" />
                             Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteActivity(activity.id)}
+                            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                          >
+                            <HiTrash className="w-3 h-3 inline mr-1" />
+                            Delete
                           </button>
                         </div>
                       </motion.div>
@@ -838,129 +1052,6 @@ const CropManagement = () => {
                         </button>
                       </div>
                     )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Analytics Tab */}
-              {activeTab === 'analytics' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-6"
-                >
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <h3 className="font-bold text-gray-900 mb-4">Productivity Analysis</h3>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Current Season Yield</span>
-                          <span className="text-2xl font-bold text-green-600">
-                            {cropData?.analytics?.productivity?.currentSeason || 0} ton/ha
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Last Season</span>
-                          <span className="font-medium text-gray-900">
-                            {cropData?.analytics?.productivity?.lastSeason || 0} ton/ha
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Target</span>
-                          <span className="font-medium text-blue-600">
-                            {cropData?.analytics?.productivity?.target || 8.0} ton/ha
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className="bg-green-500 h-3 rounded-full transition-all"
-                            style={{ 
-                              width: `${Math.min(100, ((cropData?.analytics?.productivity?.currentSeason || 0) / (cropData?.analytics?.productivity?.target || 8.0)) * 100)}%` 
-                            }}
-                          />
-                        </div>
-                        <p className="text-sm text-green-600 font-medium">
-                          Progress: {(((cropData?.analytics?.productivity?.currentSeason || 0) / (cropData?.analytics?.productivity?.target || 8.0)) * 100).toFixed(1)}% of target
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <h3 className="font-bold text-gray-900 mb-4">Cost Breakdown</h3>
-                      <div className="space-y-3">
-                        {Object.entries(cropData?.analytics?.costs?.breakdown || {}).map(([category, amount]) => (
-                          <div key={category} className="flex items-center justify-between">
-                            <span className="capitalize text-gray-700">{category}</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-20 h-2 bg-gray-200 rounded-full">
-                                <div 
-                                  className="h-2 bg-blue-500 rounded-full"
-                                  style={{ width: `${Math.min(100, (amount / (cropData?.analytics?.costs?.total || 1)) * 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium">{formatCurrency(amount)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-4 pt-4 border-t">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-gray-900">Total Investment</span>
-                          <span className="text-xl font-bold text-green-600">
-                            {formatCurrency(cropData?.analytics?.costs?.total || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-gray-600">Cost per Hectare</span>
-                          <span className="font-medium text-gray-900">
-                            {formatCurrency(cropData?.analytics?.costs?.perHectare || 0)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-xl p-6">
-                    <h3 className="font-bold text-gray-900 mb-4">Efficiency Metrics</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      {Object.entries(cropData?.analytics?.efficiency || {}).map(([metric, score]) => (
-                        <div key={metric} className="text-center">
-                          <div className="relative w-16 h-16 mx-auto mb-3">
-                            <svg className="w-16 h-16 transform -rotate-90">
-                              <circle
-                                cx="32"
-                                cy="32"
-                                r="28"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="transparent"
-                                className="text-gray-200"
-                              />
-                              <circle
-                                cx="32"
-                                cy="32"
-                                r="28"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="transparent"
-                                strokeDasharray={`${2 * Math.PI * 28}`}
-                                strokeDashoffset={`${2 * Math.PI * 28 * (1 - score / 100)}`}
-                                className={`${
-                                  score >= 85 ? 'text-green-500' :
-                                  score >= 70 ? 'text-yellow-500' : 'text-red-500'
-                                } transition-all duration-1000`}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-sm font-bold text-gray-900">{score}%</span>
-                            </div>
-                          </div>
-                          <p className="text-gray-600 font-medium text-sm capitalize">
-                            {metric.replace(/([A-Z])/g, ' $1').trim()}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1027,12 +1118,12 @@ const CropManagement = () => {
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <span className="text-sm font-medium text-gray-600">Expected Benefit:</span>
-                              <p className="text-sm text-green-700 font-medium">{rec.expectedBenefit}</p>
+                              <p className="text-xs text-gray-500 mb-1">Start Date</p>
+                              <p className="font-medium text-gray-900">{formatDate(rec.startDate)}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-600">Timeframe:</span>
-                              <p className="text-sm text-blue-700 font-medium">{rec.timeframe}</p>
+                              <p className="text-xs text-gray-500 mb-1">End Date</p>
+                              <p className="font-medium text-gray-900">{formatDate(rec.endDate)}</p>
                             </div>
                           </div>
                         </div>
@@ -1065,7 +1156,7 @@ const CropManagement = () => {
             </div>
           </motion.div>
 
-          {/* Add Activity Modal */}
+          {/* Add Form Modal */}
           <AnimatePresence>
             {showAddForm && (
               <motion.div
@@ -1079,13 +1170,434 @@ const CropManagement = () => {
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                  className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Add New Activity</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {addFormType === 'activity' ? 'Add New Activity' : 'Add New Field'}
+                    </h2>
                     <button
                       onClick={() => setShowAddForm(false)}
+                      className="p-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <HiX className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {addFormType === 'activity' ? (
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      handleCreateActivity(formData);
+                    }} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Activity Type *
+                          </label>
+                          <select name="activity_type" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <option value="">Select Activity</option>
+                            {activityTypes.map((type) => (
+                              <option key={type.id} value={type.id}>{type.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Field *
+                          </label>
+                          <select name="field_id" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <option value="">Select Field</option>
+                            {cropData?.fields?.map((field) => (
+                              <option key={field.id} value={field.id}>{field.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Activity Title *
+                        </label>
+                        <input
+                          type="text"
+                          name="activity_title"
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          placeholder="Enter activity title..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Description
+                        </label>
+                        <textarea
+                          name="activity_description"
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          placeholder="Describe the activity..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Scheduled Date *
+                          </label>
+                          <input
+                            type="date"
+                            name="scheduled_date"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Duration (hours)
+                          </label>
+                          <input
+                            type="number"
+                            name="duration_hours"
+                            step="0.5"
+                            min="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="8"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Area (hectares)
+                          </label>
+                          <input
+                            type="number"
+                            name="area_hectares"
+                            step="0.1"
+                            min="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="2.5"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Workers Needed
+                          </label>
+                          <input
+                            type="number"
+                            name="workers_count"
+                            min="1"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="6"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Total Cost (IDR)
+                          </label>
+                          <input
+                            type="number"
+                            name="total_cost"
+                            min="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="5000000"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Priority Level
+                          </label>
+                          <select name="priority_level" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="low">Low</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Supervisor Name
+                          </label>
+                          <input
+                            type="text"
+                            name="supervisor_name"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="Supervisor name"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Weather Conditions
+                          </label>
+                          <input
+                            type="text"
+                            name="weather_conditions"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="Normal weather conditions"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Notes
+                        </label>
+                        <textarea
+                          name="activity_notes"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          placeholder="Additional notes..."
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {loading ? 'Creating...' : 'Create Activity'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddForm(false)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      handleCreateField(formData);
+                    }} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Field Name *
+                          </label>
+                          <input
+                            type="text"
+                            name="field_name"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="Enter field name..."
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Crop Type *
+                          </label>
+                          <select name="crop_type" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <option value="">Select Crop</option>
+                            {cropTypes.map((crop) => (
+                              <option key={crop.id} value={crop.id}>{crop.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Location Address
+                        </label>
+                        <input
+                          type="text"
+                          name="location_address"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          placeholder="Enter field location..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Area (hectares) *
+                          </label>
+                          <input
+                            type="number"
+                            name="area_hectares"
+                            step="0.1"
+                            min="0"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="12.5"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Latitude
+                          </label>
+                          <input
+                            type="number"
+                            name="coordinates_lat"
+                            step="any"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="-7.9826"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Longitude
+                          </label>
+                          <input
+                            type="number"
+                            name="coordinates_lng"
+                            step="any"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="112.6308"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Crop Variety
+                          </label>
+                          <input
+                            type="text"
+                            name="crop_variety"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="IR64 Premium"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Growth Stage
+                          </label>
+                          <select name="growth_stage" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            {growthStages.map((stage) => (
+                              <option key={stage.id} value={stage.id}>{stage.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Planting Date
+                          </label>
+                          <input
+                            type="date"
+                            name="planting_date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Expected Harvest Date
+                          </label>
+                          <input
+                            type="date"
+                            name="expected_harvest_date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Owner Name
+                          </label>
+                          <input
+                            type="text"
+                            name="owner_name"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="Field owner name"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Supervisor Name
+                          </label>
+                          <input
+                            type="text"
+                            name="supervisor_name"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="Field supervisor name"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Field Notes
+                        </label>
+                        <textarea
+                          name="field_notes"
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          placeholder="Additional field notes..."
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {loading ? 'Creating...' : 'Create Field'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddForm(false)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Edit Field Modal */}
+          <AnimatePresence>
+            {selectedField && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                onClick={() => setSelectedField(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Edit Field</h2>
+                    <button
+                      onClick={() => setSelectedField(null)}
                       className="p-2 text-gray-400 hover:text-gray-600"
                     >
                       <HiX className="w-5 h-5" />
@@ -1095,42 +1607,29 @@ const CropManagement = () => {
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    const activityData = {
-                      field_id: formData.get('field_id'),
-                      activity_type: formData.get('activity_type'),
-                      activity_title: formData.get('activity_title'),
-                      activity_description: formData.get('activity_description'),
-                      scheduled_date: formData.get('scheduled_date'),
-                      duration_hours: parseFloat(formData.get('duration_hours')) || 0,
-                      workers_count: parseInt(formData.get('workers_count')) || 1,
-                      total_cost: parseFloat(formData.get('total_cost')) || 0,
-                      priority_level: formData.get('priority_level'),
-                      supervisor_name: formData.get('supervisor_name'),
-                      activity_notes: formData.get('activity_notes')
-                    };
-                    handleCreateActivity(activityData);
+                    handleUpdateField(selectedField.id, formData);
                   }} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Activity Type
+                          Field Name *
                         </label>
-                        <select name="activity_type" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                          <option value="">Select Activity</option>
-                          {activityTypes.map((type) => (
-                            <option key={type.id} value={type.id}>{type.label}</option>
-                          ))}
-                        </select>
+                        <input
+                          type="text"
+                          name="field_name"
+                          defaultValue={selectedField.name}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Field
+                          Growth Stage
                         </label>
-                        <select name="field_id" required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                          <option value="">Select Field</option>
-                          {cropData?.fields?.map((field) => (
-                            <option key={field.id} value={field.id}>{field.name}</option>
+                        <select name="growth_stage" defaultValue={selectedField.growthStage} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                          {growthStages.map((stage) => (
+                            <option key={stage.id} value={stage.id}>{stage.label}</option>
                           ))}
                         </select>
                       </div>
@@ -1138,15 +1637,215 @@ const CropManagement = () => {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Activity Title
+                        Location Address
                       </label>
                       <input
                         type="text"
-                        name="activity_title"
-                        required
+                        name="location_address"
+                        defaultValue={selectedField.location}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                        placeholder="Enter activity title..."
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Area (hectares) *
+                        </label>
+                        <input
+                          type="number"
+                          name="area_hectares"
+                          step="0.1"
+                          min="0"
+                          defaultValue={selectedField.area}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Latitude
+                        </label>
+                        <input
+                          type="number"
+                          name="coordinates_lat"
+                          step="any"
+                          defaultValue={selectedField.coordinates?.lat}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Longitude
+                        </label>
+                        <input
+                          type="number"
+                          name="coordinates_lng"
+                          step="any"
+                          defaultValue={selectedField.coordinates?.lng}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Crop Variety
+                        </label>
+                        <input
+                          type="text"
+                          name="crop_variety"
+                          defaultValue={selectedField.variety}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Field Status
+                        </label>
+                        <select name="field_status" defaultValue={selectedField.status} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                          <option value="active">Active</option>
+                          <option value="fallow">Fallow</option>
+                          <option value="preparation">Preparation</option>
+                          <option value="harvested">Harvested</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Expected Harvest Date
+                      </label>
+                      <input
+                        type="date"
+                        name="expected_harvest_date"
+                        defaultValue={selectedField.harvestDate}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Owner Name
+                        </label>
+                        <input
+                          type="text"
+                          name="owner_name"
+                          defaultValue={selectedField.owner}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Supervisor Name
+                        </label>
+                        <input
+                          type="text"
+                          name="supervisor_name"
+                          defaultValue={selectedField.supervisor}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Field Notes
+                      </label>
+                      <textarea
+                        name="field_notes"
+                        rows={3}
+                        defaultValue={selectedField.notes}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                      >
+                        {loading ? 'Updating...' : 'Update Field'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedField(null)}
+                        className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Edit Activity Modal */}
+          <AnimatePresence>
+            {selectedActivity && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                onClick={() => setSelectedActivity(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Edit Activity</h2>
+                    <button
+                      onClick={() => setSelectedActivity(null)}
+                      className="p-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <HiX className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    handleUpdateActivity(selectedActivity.id, formData);
+                  }} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Activity Title *
+                        </label>
+                        <input
+                          type="text"
+                          name="activity_title"
+                          defaultValue={selectedActivity.title}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Activity Status
+                        </label>
+                        <select name="activity_status" defaultValue={selectedActivity.status} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                          <option value="planned">Planned</option>
+                          <option value="ongoing">Ongoing</option>
+                          <option value="completed">Completed</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div>
@@ -1156,22 +1855,64 @@ const CropManagement = () => {
                       <textarea
                         name="activity_description"
                         rows={3}
+                        defaultValue={selectedActivity.description}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                        placeholder="Describe the activity..."
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Scheduled Date
+                          Scheduled Date *
                         </label>
                         <input
                           type="date"
                           name="scheduled_date"
+                          defaultValue={selectedActivity.scheduledDate}
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          placeholder="8"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Completed Date
+                        </label>
+                        <input
+                          type="date"
+                          name="completed_date"
+                          defaultValue={selectedActivity.completedDate}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Duration (hours)
+                        </label>
+                        <input
+                          type="number"
+                          name="duration_hours"
+                          step="0.5"
+                          min="0"
+                          defaultValue={selectedActivity.duration}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Area (hectares)
+                        </label>
+                        <input
+                          type="number"
+                          name="area_hectares"
+                          step="0.1"
+                          min="0"
+                          defaultValue={selectedActivity.area}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>
                       
@@ -1183,13 +1924,11 @@ const CropManagement = () => {
                           type="number"
                           name="workers_count"
                           min="1"
+                          defaultValue={selectedActivity.workers}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          placeholder="6"
                         />
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Total Cost (IDR)
@@ -1198,20 +1937,22 @@ const CropManagement = () => {
                           type="number"
                           name="total_cost"
                           min="0"
+                          defaultValue={selectedActivity.cost}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          placeholder="5000000"
                         />
                       </div>
-                      
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Priority Level
                         </label>
-                        <select name="priority_level" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <select name="priority_level" defaultValue={selectedActivity.priority} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                          <option value="low">Low</option>
                           <option value="normal">Normal</option>
                           <option value="high">High</option>
                           <option value="urgent">Urgent</option>
-                          <option value="low">Low</option>
                         </select>
                       </div>
                       
@@ -1222,8 +1963,37 @@ const CropManagement = () => {
                         <input
                           type="text"
                           name="supervisor_name"
+                          defaultValue={selectedActivity.supervisor}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          placeholder="Supervisor name"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Weather Conditions
+                        </label>
+                        <input
+                          type="text"
+                          name="weather_conditions"
+                          defaultValue={selectedActivity.weather}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Quality Score (0-100)
+                        </label>
+                        <input
+                          type="number"
+                          name="quality_score"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          defaultValue={selectedActivity.qualityScore}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -1235,8 +2005,8 @@ const CropManagement = () => {
                       <textarea
                         name="activity_notes"
                         rows={2}
+                        defaultValue={selectedActivity.notes}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                        placeholder="Additional notes..."
                       />
                     </div>
 
@@ -1246,11 +2016,11 @@ const CropManagement = () => {
                         disabled={loading}
                         className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
                       >
-                        {loading ? 'Creating...' : 'Create Activity'}
+                        {loading ? 'Updating...' : 'Update Activity'}
                       </button>
                       <button
                         type="button"
-                        onClick={() => setShowAddForm(false)}
+                        onClick={() => setSelectedActivity(null)}
                         className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                       >
                         Cancel

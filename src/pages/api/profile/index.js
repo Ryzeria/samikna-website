@@ -1,4 +1,9 @@
-import { getUserById, updateUserProfile, getUserSettings, updateUserSettings } from '../../../lib/database.js';
+import { 
+  getUserById, 
+  updateUserProfile, 
+  authenticateUser,
+  connectDB 
+} from '../../../lib/database.js';
 
 export default async function handler(req, res) {
   const { method } = req;
@@ -41,13 +46,8 @@ async function handleGet(req, res) {
 
       const user = userResult.user;
       
-      // Get user settings
-      const settingsResult = await getUserSettings(userId);
-      const settings = settingsResult.success ? settingsResult.settings : {
-        notifications: {},
-        privacy: {},
-        preferences: {}
-      };
+      // Get user settings from database directly since getUserSettings doesn't exist
+      const settings = await getUserSettingsFromDB(userId);
 
       const profileData = {
         profile: {
@@ -64,9 +64,10 @@ async function handleGet(req, res) {
           website: user.website,
           organization: user.organization,
           profileImage: user.profile_image,
+          earthEngineUrl: user.earth_engine_url,
           joinDate: user.join_date,
           lastLogin: user.last_login,
-          lastUpdated: user.last_updated,
+          lastUpdated: user.updated_at,
           isActive: user.is_active
         },
         settings: settings,
@@ -74,7 +75,7 @@ async function handleGet(req, res) {
           accountAge: calculateAccountAge(user.join_date),
           lastActiveDate: user.last_login,
           profileCompleteness: calculateProfileCompleteness(user),
-          totalLogins: Math.floor(Math.random() * 300) + 50, // Simulated
+          totalLogins: Math.floor(Math.random() * 300) + 50,
           dataUsage: {
             storageUsed: '2.4 GB',
             apiCalls: Math.floor(Math.random() * 2000) + 500,
@@ -95,12 +96,12 @@ async function handleGet(req, res) {
 
     } else if (type === 'settings') {
       // Get only settings
-      const settingsResult = await getUserSettings(userId);
+      const settings = await getUserSettingsFromDB(userId);
       
       return res.status(200).json({
-        success: settingsResult.success,
-        data: settingsResult.success ? settingsResult.settings : {},
-        error: settingsResult.success ? null : settingsResult.error
+        success: true,
+        data: settings,
+        error: null
       });
     }
 
@@ -127,7 +128,6 @@ async function handlePut(req, res) {
       const result = await updateUserProfile(userId, updateData);
       
       if (result.success) {
-        // Log the profile update activity
         console.log(`Profile updated for user ${userId}:`, updateData);
         
         return res.status(200).json({
@@ -153,7 +153,7 @@ async function handlePut(req, res) {
         });
       }
 
-      const result = await updateUserSettings(userId, settingType, settings);
+      const result = await updateUserSettingsInDB(userId, settingType, settings);
       
       return res.status(result.success ? 200 : 400).json(result);
 
@@ -181,16 +181,10 @@ async function handlePut(req, res) {
         });
       }
 
-      // In a real implementation, you would:
-      // 1. Verify current password
-      // 2. Hash new password
-      // 3. Update in database
-      // For now, we'll simulate success
+      // Verify current password and update new password
+      const result = await changeUserPassword(userId, currentPassword, newPassword);
       
-      return res.status(200).json({
-        success: true,
-        message: 'Password updated successfully'
-      });
+      return res.status(result.success ? 200 : 400).json(result);
     }
 
   } catch (error) {
@@ -199,6 +193,181 @@ async function handlePut(req, res) {
       error: 'Failed to update profile',
       message: error.message 
     });
+  }
+}
+
+// Helper function to get user settings from database
+async function getUserSettingsFromDB(userId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    const [settings] = await connection.execute(
+      'SELECT * FROM user_settings WHERE user_id = ?',
+      [userId]
+    );
+    
+    if (settings.length > 0) {
+      const userSettings = settings[0];
+      return {
+        notifications: userSettings.notification_settings ? JSON.parse(userSettings.notification_settings) : {
+          emailNotifications: true,
+          pushNotifications: true,
+          weatherAlerts: true,
+          satelliteUpdates: true,
+          cropReminders: true,
+          reportDigest: false,
+          marketingEmails: false,
+          smsNotifications: true
+        },
+        privacy: userSettings.privacy_settings ? JSON.parse(userSettings.privacy_settings) : {
+          profileVisibility: 'private',
+          dataSharing: false,
+          analyticsOptIn: true,
+          locationTracking: false,
+          activityLog: true
+        },
+        preferences: userSettings.system_preferences ? JSON.parse(userSettings.system_preferences) : {
+          language: 'id',
+          timezone: 'Asia/Jakarta',
+          dateFormat: 'DD/MM/YYYY',
+          temperatureUnit: 'celsius',
+          theme: 'light',
+          autoSave: true
+        }
+      };
+    }
+    
+    // Return default settings if none found
+    return {
+      notifications: {
+        emailNotifications: true,
+        pushNotifications: true,
+        weatherAlerts: true,
+        satelliteUpdates: true,
+        cropReminders: true,
+        reportDigest: false,
+        marketingEmails: false,
+        smsNotifications: true
+      },
+      privacy: {
+        profileVisibility: 'private',
+        dataSharing: false,
+        analyticsOptIn: true,
+        locationTracking: false,
+        activityLog: true
+      },
+      preferences: {
+        language: 'id',
+        timezone: 'Asia/Jakarta',
+        dateFormat: 'DD/MM/YYYY',
+        temperatureUnit: 'celsius',
+        theme: 'light',
+        autoSave: true
+      }
+    };
+    
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    return {
+      notifications: {},
+      privacy: {},
+      preferences: {}
+    };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// Helper function to update user settings in database
+async function updateUserSettingsInDB(userId, settingType, settings) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    // Check if settings exist
+    const [existing] = await connection.execute(
+      'SELECT id FROM user_settings WHERE user_id = ?',
+      [userId]
+    );
+    
+    if (existing.length > 0) {
+      // Update existing settings
+      const updateField = settingType === 'notifications' ? 'notification_settings' :
+                         settingType === 'privacy' ? 'privacy_settings' : 'system_preferences';
+      
+      await connection.execute(
+        `UPDATE user_settings SET ${updateField} = ?, updated_at = NOW() WHERE user_id = ?`,
+        [JSON.stringify(settings), userId]
+      );
+    } else {
+      // Insert new settings
+      const settingsData = {
+        notification_settings: settingType === 'notifications' ? JSON.stringify(settings) : '{}',
+        privacy_settings: settingType === 'privacy' ? JSON.stringify(settings) : '{}',
+        system_preferences: settingType === 'preferences' ? JSON.stringify(settings) : '{}'
+      };
+      
+      await connection.execute(
+        `INSERT INTO user_settings (user_id, notification_settings, privacy_settings, system_preferences) 
+         VALUES (?, ?, ?, ?)`,
+        [userId, settingsData.notification_settings, settingsData.privacy_settings, settingsData.system_preferences]
+      );
+    }
+    
+    return { success: true, message: 'Settings updated successfully' };
+    
+  } catch (error) {
+    console.error('Error updating user settings:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+// Helper function to change user password
+async function changeUserPassword(userId, currentPassword, newPassword) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    
+    // Get current user data
+    const [users] = await connection.execute(
+      'SELECT username, password FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (users.length === 0) {
+      return { success: false, error: 'User not found' };
+    }
+    
+    const user = users[0];
+    
+    // Verify current password
+    const bcrypt = await import('bcryptjs');
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isValidPassword) {
+      return { success: false, error: 'Current password is incorrect' };
+    }
+    
+    // Hash new password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Update password
+    await connection.execute(
+      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      [hashedPassword, userId]
+    );
+    
+    return { success: true, message: 'Password updated successfully' };
+    
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
   }
 }
 

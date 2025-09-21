@@ -344,12 +344,12 @@ const ProfilePage = () => {
 
   // Tab configuration
   const tabs = [
-    { id: 'profile', label: 'Profile Information', icon: '👤' },
-    { id: 'security', label: 'Security & Password', icon: '🔒' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'privacy', label: 'Privacy Settings', icon: '🛡️' },
-    { id: 'preferences', label: 'System Preferences', icon: '⚙️' },
-    { id: 'data', label: 'Data Management', icon: '📊' }
+    { id: 'profile', label: 'Profile Information' },
+    { id: 'security', label: 'Security & Password' },
+    { id: 'notifications', label: 'Notifications' },
+    { id: 'privacy', label: 'Privacy Settings' },
+    { id: 'preferences', label: 'System Preferences' },
+    { id: 'data', label: 'Data Management' }
   ];
 
   // Toggle switch component
@@ -504,16 +504,14 @@ const ProfilePage = () => {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`p-4 rounded-xl border ${
+              className={`p-4 rounded-xl border flex items-center gap-3 ${
                 message.type === 'success' 
                   ? 'bg-green-50 border-green-200 text-green-800'
                   : 'bg-red-50 border-red-200 text-red-800'
               } transition-all duration-300`}
             >
-              <div className="flex items-center gap-2">
-                <span>{message.type === 'success' ? '✅' : '❌'}</span>
-                {message.content}
-              </div>
+              <span>{message.type === 'success' ? '✅' : '❌'}</span>
+              {message.content}
             </motion.div>
           )}
 
@@ -546,7 +544,6 @@ const ProfilePage = () => {
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-lg">{tab.icon}</span>
                     {tab.label}
                   </button>
                 ))}
@@ -555,11 +552,12 @@ const ProfilePage = () => {
 
             {/* Tab Content */}
             <div className="p-6">
+              
               {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Informasi Profil</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">👤 Informasi Profil</h3>
                     <div className="text-sm text-gray-500">
                       Last updated: {profileData?.profile?.lastUpdated ? 
                         new Date(profileData.profile.lastUpdated).toLocaleDateString('id-ID') : 'Never'}
@@ -570,9 +568,7 @@ const ProfilePage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Basic Information */}
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900 border-b pb-2 flex items-center gap-2">
-                          <span>👤</span> Informasi Dasar
-                        </h4>
+                        <h4 className="font-medium text-gray-900 border-b pb-2">👤 Informasi Dasar</h4>
 
                         <div>
                           <label className="block text-gray-700 font-medium mb-2">Username</label>
@@ -597,7 +593,7 @@ const ProfilePage = () => {
                         </div>
 
                         <div>
-                          <label className="block text-gray-700 font-medium mb-2">Email *</label>
+                          <label className="block text-gray-700 font-medium mb-2">📧 Email *</label>
                           <input
                             type="email"
                             value={formData.email}
@@ -608,7 +604,7 @@ const ProfilePage = () => {
                         </div>
 
                         <div>
-                          <label className="block text-gray-700 font-medium mb-2">Nomor Telepon</label>
+                          <label className="block text-gray-700 font-medium mb-2">📞 Nomor Telepon</label>
                           <input
                             type="tel"
                             value={formData.phone}
@@ -621,12 +617,10 @@ const ProfilePage = () => {
 
                       {/* Professional Information */}
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900 border-b pb-2 flex items-center gap-2">
-                          <span>🏢</span> Informasi Profesi
-                        </h4>
+                        <h4 className="font-medium text-gray-900 border-b pb-2">🏢 Informasi Profesi</h4>
 
                         <div>
-                          <label className="block text-gray-700 font-medium mb-2">Kabupaten</label>
+                          <label className="block text-gray-700 font-medium mb-2">📍 Kabupaten</label>
                           <input
                             type="text"
                             value={profileData?.profile?.kabupaten || ''}
@@ -656,7 +650,7 @@ const ProfilePage = () => {
                         </div>
 
                         <div>
-                          <label className="block text-gray-700 font-medium mb-2">Website</label>
+                          <label className="block text-gray-700 font-medium mb-2">🌐 Website</label>
                           <input
                             type="url"
                             value={formData.website}
@@ -669,7 +663,7 @@ const ProfilePage = () => {
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-medium mb-2">Alamat</label>
+                      <label className="block text-gray-700 font-medium mb-2">📍 Alamat</label>
                       <textarea
                         value={formData.address}
                         onChange={(e) => setFormData({...formData, address: e.target.value})}
@@ -680,7 +674,7 @@ const ProfilePage = () => {
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-medium mb-2">Bio / Deskripsi</label>
+                      <label className="block text-gray-700 font-medium mb-2">✏️ Bio / Deskripsi</label>
                       <textarea
                         value={formData.bio}
                         onChange={(e) => setFormData({...formData, bio: e.target.value})}
@@ -713,8 +707,7 @@ const ProfilePage = () => {
                           </>
                         ) : (
                           <>
-                            <span>💾</span>
-                            Simpan Perubahan
+                            💾 Simpan Perubahan
                           </>
                         )}
                       </button>
@@ -726,14 +719,12 @@ const ProfilePage = () => {
               {/* Security Tab */}
               {activeTab === 'security' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <span>🔒</span> Keamanan & Password
-                  </h3>
+                  <h3 className="text-lg font-semibold text-gray-900">🔒 Keamanan & Password</h3>
 
                   <div className="bg-gray-50 rounded-xl p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h4 className="font-medium text-gray-900">Ubah Password</h4>
+                        <h4 className="font-medium text-gray-900">🔑 Ubah Password</h4>
                         <p className="text-gray-600 text-sm">Update password untuk keamanan akun</p>
                       </div>
                       <button
@@ -799,7 +790,7 @@ const ProfilePage = () => {
 
                   {profileData?.profile && (
                     <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="font-medium text-gray-900 mb-4">Informasi Akun</h4>
+                      <h4 className="font-medium text-gray-900 mb-4">📊 Informasi Akun</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <p className="text-sm text-gray-600">Tanggal Bergabung</p>
@@ -847,7 +838,7 @@ const ProfilePage = () => {
               {activeTab === 'notifications' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Pengaturan Notifikasi</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">🔔 Pengaturan Notifikasi</h3>
                     <button
                       onClick={() => handleSettingsUpdate('notifications', notificationSettings)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -858,7 +849,7 @@ const ProfilePage = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
-                      <h4 className="font-medium text-gray-900">Notifikasi Umum</h4>
+                      <h4 className="font-medium text-gray-900">📢 Notifikasi Umum</h4>
 
                       <ToggleSwitch
                         checked={notificationSettings.emailNotifications}
@@ -902,7 +893,7 @@ const ProfilePage = () => {
                     </div>
 
                     <div className="space-y-4">
-                      <h4 className="font-medium text-gray-900">Notifikasi Pertanian</h4>
+                      <h4 className="font-medium text-gray-900">🌾 Notifikasi Pertanian</h4>
 
                       <ToggleSwitch
                         checked={notificationSettings.weatherAlerts}
@@ -952,7 +943,7 @@ const ProfilePage = () => {
               {activeTab === 'privacy' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Pengaturan Privasi</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">🛡️ Pengaturan Privasi</h3>
                     <button
                       onClick={() => handleSettingsUpdate('privacy', privacySettings)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -963,7 +954,7 @@ const ProfilePage = () => {
 
                   <div className="space-y-6">
                     <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="font-medium text-gray-900 mb-4">Visibilitas Profil</h4>
+                      <h4 className="font-medium text-gray-900 mb-4">👁️ Visibilitas Profil</h4>
                       <div className="space-y-3">
                         {[
                           { value: 'public', label: 'Public', desc: 'Profil dapat dilihat siapa saja' },
@@ -1040,7 +1031,7 @@ const ProfilePage = () => {
               {activeTab === 'preferences' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Preferensi Sistem</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">⚙️ Preferensi Sistem</h3>
                     <button
                       onClick={() => handleSettingsUpdate('preferences', systemPreferences)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -1151,7 +1142,7 @@ const ProfilePage = () => {
               {/* Data Management Tab */}
               {activeTab === 'data' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Manajemen Data</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">📊 Manajemen Data</h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
@@ -1166,10 +1157,9 @@ const ProfilePage = () => {
                       </div>
                       <button
                         onClick={exportUserData}
-                        className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
                       >
-                        <span>💾</span>
-                        Export All Data
+                        📤 Export All Data
                       </button>
                     </div>
 
@@ -1190,17 +1180,16 @@ const ProfilePage = () => {
                           localStorage.removeItem('cached_supply_data');
                           showMessage('success', 'Cache berhasil dihapus!');
                         }}
-                        className="w-full bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors"
                       >
-                        <span>🧹</span>
-                        Clear Cache
+                        🧹 Clear Cache
                       </button>
                     </div>
                   </div>
 
                   {profileData?.statistics && (
                     <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="font-medium text-gray-900 mb-4">Data Usage Statistics</h4>
+                      <h4 className="font-medium text-gray-900 mb-4">📈 Data Usage Statistics</h4>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="text-center p-4 bg-white rounded-lg">
                           <div className="text-2xl font-bold text-blue-600">
