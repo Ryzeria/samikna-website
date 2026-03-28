@@ -1,12 +1,13 @@
+require('dotenv').config({ path: '.env.local' });
 const mysql = require('mysql2/promise');
 
 // Database configuration - MariaDB optimized for SAMIKNA Platform
 const dbConfig = {
-  host: process.env.DB_HOST || 'srv566.hstgr.io',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'u722506862_samikna',
-  password: process.env.DB_PASS || 'S@m1Kn4!',
-  database: process.env.DB_NAME || 'u722506862_samikna',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   ssl: false,
   connectTimeout: 30000,
   charset: 'utf8mb4'
@@ -236,7 +237,7 @@ async function testDatabaseConnection() {
     
     switch (error.code) {
       case 'ENOTFOUND':
-        console.log('   - Check if Hostinger hostname "srv566.hstgr.io" is accessible');
+        console.log(`   - Check if DB_HOST "${process.env.DB_HOST}" is accessible`);
         console.log('   - Verify your internet connection');
         console.log('   - Check Hostinger control panel for database server status');
         break;
@@ -248,7 +249,7 @@ async function testDatabaseConnection() {
         break;
         
       case 'ER_ACCESS_DENIED_ERROR':
-        console.log('   - Verify username: u722506862_samikna');
+        console.log(`   - Verify username in .env.local (DB_USER)`);
         console.log('   - Check password in Hostinger database section');
         console.log('   - Ensure database user has full permissions');
         console.log('   - Try accessing via phpMyAdmin first to verify credentials');
@@ -261,7 +262,7 @@ async function testDatabaseConnection() {
         break;
         
       case 'ER_BAD_DB_ERROR':
-        console.log('   - Database "u722506862_samikna" does not exist');
+        console.log(`   - Database "${process.env.DB_NAME}" does not exist`);
         console.log('   - Create database in Hostinger control panel');
         console.log('   - Verify database name matches exactly');
         break;

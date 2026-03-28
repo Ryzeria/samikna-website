@@ -1,30 +1,28 @@
-import { 
-  getUserById, 
-  updateUserProfile, 
+import {
+  getUserById,
+  updateUserProfile,
   authenticateUser,
-  connectDB 
+  connectDB
 } from '../../../lib/database.js';
 
-export default async function handler(req, res) {
+import { ok, fail, methodNotAllowed } from '../../../lib/apiResponse.js';
+import { authMiddleware } from '../../../lib/authMiddleware.js';
+import { validateProfileUpdate, validatePasswordChange } from '../../../lib/validators.js';
+
+export default authMiddleware(async function handler(req, res) {
   const { method } = req;
 
   try {
     switch (method) {
-      case 'GET':
-        return await handleGet(req, res);
-      case 'PUT':
-        return await handlePut(req, res);
-      default:
-        return res.status(405).json({ error: 'Method not allowed' });
+      case 'GET': return await handleGet(req, res);
+      case 'PUT': return await handlePut(req, res);
+      default:    return methodNotAllowed(res, ['GET', 'PUT']);
     }
   } catch (error) {
     console.error('Profile API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return fail(res, 500, 'SERVER_ERROR', 'Terjadi kesalahan sistem.', error.message);
   }
-}
+});
 
 async function handleGet(req, res) {
   const { userId, type = 'profile' } = req.query;
@@ -75,12 +73,12 @@ async function handleGet(req, res) {
           accountAge: calculateAccountAge(user.join_date),
           lastActiveDate: user.last_login,
           profileCompleteness: calculateProfileCompleteness(user),
-          totalLogins: Math.floor(Math.random() * 300) + 50,
+          totalLogins: 0,
           dataUsage: {
-            storageUsed: '2.4 GB',
-            apiCalls: Math.floor(Math.random() * 2000) + 500,
-            reportsGenerated: Math.floor(Math.random() * 200) + 20,
-            daysActive: Math.floor(Math.random() * 365) + 30
+            storageUsed: '0 MB',
+            apiCalls: 0,
+            reportsGenerated: 0,
+            daysActive: calculateAccountAge(user.join_date)
           }
         }
       };
@@ -124,12 +122,17 @@ async function handlePut(req, res) {
 
   try {
     if (type === 'profile') {
+      const profileValidation = validateProfileUpdate(updateData);
+      if (!profileValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: profileValidation.errors[0], detail: profileValidation.errors }
+        });
+      }
       // Update user profile
       const result = await updateUserProfile(userId, updateData);
       
       if (result.success) {
-        console.log(`Profile updated for user ${userId}:`, updateData);
-        
         return res.status(200).json({
           success: true,
           message: 'Profile updated successfully',
@@ -160,24 +163,12 @@ async function handlePut(req, res) {
     } else if (type === 'password') {
       // Change password
       const { currentPassword, newPassword } = updateData;
-      
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ 
-          error: 'Missing currentPassword or newPassword' 
-        });
-      }
 
-      // Password validation
-      if (newPassword.length < 8) {
-        return res.status(400).json({ 
-          error: 'Password must be at least 8 characters long' 
-        });
-      }
-
-      const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-      if (!strongPassword.test(newPassword)) {
-        return res.status(400).json({ 
-          error: 'Password must contain uppercase, lowercase, number, and special character' 
+      const passwordValidation = validatePasswordChange({ currentPassword, newPassword });
+      if (!passwordValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: passwordValidation.errors[0], detail: passwordValidation.errors }
         });
       }
 
@@ -275,7 +266,7 @@ async function getUserSettingsFromDB(userId) {
       preferences: {}
     };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -321,7 +312,7 @@ async function updateUserSettingsInDB(userId, settingType, settings) {
     console.error('Error updating user settings:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -367,7 +358,7 @@ async function changeUserPassword(userId, currentPassword, newPassword) {
     console.error('Error changing password:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 

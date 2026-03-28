@@ -6,7 +6,7 @@ import {
 } from 'react-icons/hi';
 import { 
   FaSatellite, FaCloudSun, FaSeedling, FaWarehouse,
-  FaRocket, FaShield, FaMobile, FaDesktop, FaLeaf
+  FaRocket, FaShieldAlt, FaMobile, FaDesktop, FaLeaf
 } from 'react-icons/fa';
 import { fadeIn, textVariant, staggerContainer, bounceIn } from '../animations/motionVariants';
 
@@ -210,7 +210,7 @@ const Specifications = () => {
         },
         {
           category: "Security & Compliance",
-          icon: FaShield,
+          icon: FaShieldAlt,
           specs: [
             { label: "Data Encryption", value: "AES-256", unit: "at rest & transit" },
             { label: "Compliance", value: "SOC 2, ISO 27001", unit: "" },

@@ -143,8 +143,8 @@ const Testimonials = () => {
       {/* Background Decorations */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-green-200/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 -left-20 w-60 h-60 bg-blue-200/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
-        <div className="absolute -bottom-10 right-1/3 w-32 h-32 bg-yellow-200/20 rounded-full blur-2xl animate-pulse" style={{animationDelay: '4s'}}></div>
+        <div className="absolute top-1/2 -left-20 w-60 h-60 bg-blue-200/15 rounded-full blur-3xl animate-pulse [animation-delay:2s]"></div>
+        <div className="absolute -bottom-10 right-1/3 w-32 h-32 bg-yellow-200/20 rounded-full blur-2xl animate-pulse [animation-delay:4s]"></div>
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -152,7 +152,7 @@ const Testimonials = () => {
         {/* Section Header */}
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-2 bg-white shadow-md px-6 py-3 rounded-full mb-6 hover:shadow-lg transition-all duration-300">
-            <HiStar className="w-5 h-5 text-yellow-500 animate-spin" style={{animationDuration: '3s'}} />
+            <HiStar className="w-5 h-5 text-yellow-500 animate-spin [animation-duration:3s]" />
             <span className="text-green-700 font-semibold">Testimoni Platform</span>
           </div>
           

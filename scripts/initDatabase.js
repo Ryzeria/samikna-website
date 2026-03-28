@@ -1,13 +1,14 @@
+require('dotenv').config({ path: '.env.local' });
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 // Database configuration - MariaDB compatible for SAMIKNA Platform
 const dbConfig = {
-  host: process.env.DB_HOST || 'srv566.hstgr.io',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'u722506862_samikna',
-  password: process.env.DB_PASS || 'S@m1Kn4!',
-  database: process.env.DB_NAME || 'u722506862_samikna',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   ssl: false,
   connectTimeout: 30000,
   charset: 'utf8mb4'

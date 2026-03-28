@@ -1,44 +1,123 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# SAMIKNA — Sistem Aplikasi Monitoring Kesehatan Tanaman
 
-## Getting Started
+Platform monitoring pertanian berbasis teknologi **remote sensing** dan **data satelit** untuk kabupaten di Jawa Timur.
 
-First, run the development server:
+## Tech Stack
+
+- **Framework:** Next.js 15.5 (Pages Router)
+- **UI:** React 18 + Tailwind CSS 3 + Framer Motion
+- **Auth:** JWT (httpOnly cookie) + bcryptjs
+- **Database:** MySQL/MariaDB via mysql2
+- **Maps:** Google Earth Engine (iframe embed)
+
+## Struktur Proyek
+
+```
+src/
+├── pages/
+│   ├── index.jsx              # Landing page
+│   ├── login.jsx              # Halaman login
+│   ├── dashboard/             # Halaman dashboard (protected)
+│   │   ├── index.jsx          # Overview & analytics
+│   │   ├── maps.jsx           # Peta satelit GEE
+│   │   ├── crop-management.jsx
+│   │   ├── supply-chain.jsx
+│   │   ├── chatbot.jsx
+│   │   ├── reports.jsx
+│   │   └── profile.jsx
+│   └── api/                   # API routes (server-side)
+│       ├── auth/              # login, logout, me, csrf-token
+│       ├── dashboard/
+│       ├── crop-management/
+│       ├── supply-chain/
+│       ├── reports/
+│       └── profile/
+├── components/
+│   ├── layout/                # Navbar, Footer
+│   ├── dashboard/             # DashboardLayout + sub-komponen
+│   └── sections/              # Landing page sections
+├── contexts/
+│   └── AuthContext.jsx        # Auth state + useAuth + withAuth
+├── lib/
+│   ├── apiClient.js           # Centralized fetch + CSRF otomatis
+│   ├── apiResponse.js         # Standard API response helper
+│   ├── authMiddleware.js      # Server-side JWT middleware
+│   ├── csrf.js                # CSRF token utilities
+│   ├── rateLimiter.js         # In-memory rate limiter
+│   ├── validators.js          # Server-side input validation
+│   └── database.js            # MySQL connection & queries
+└── constants/
+    └── index.js               # Konstanta aplikasi terpusat
+```
+
+## Setup Development
+
+### 1. Clone & install
+
+```bash
+git clone <repo-url>
+cd samikna-website
+npm install
+```
+
+### 2. Environment variables
+
+Buat file `.env.local` di root project:
+
+```env
+# Database
+DB_HOST=your-db-host
+DB_PORT=3306
+DB_NAME=your-db-name
+DB_USER=your-db-user
+DB_PASS=your-db-password
+
+# Auth
+JWT_SECRET=your-very-long-random-secret-min-32-chars
+
+# App URLs (opsional)
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=https://samikna.id
+```
+
+### 3. Inisialisasi database
+
+```bash
+npm run db:init    # Buat tabel-tabel
+npm run db:seed    # Isi data awal
+npm run db:test    # Test koneksi
+```
+
+### 4. Jalankan development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+## Deployment
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+### Vercel (rekomendasi)
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+```bash
+npm run deploy:vercel
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Pastikan semua environment variables sudah diset di dashboard Vercel.
 
-## Learn More
+### Hostinger (static export)
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build:static
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+Upload isi folder `/out` ke `public_html` di Hostinger.
+Catatan: static mode tidak mendukung API routes — diperlukan server Node.js terpisah.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Autentikasi
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
-=======
-# samikna-website
->>>>>>> 181b72595e241b4229cc3ee4b6a12db394dc5ece
+- Token JWT disimpan sebagai **httpOnly cookie** (`samikna_token`) — tidak bisa diakses JavaScript
+- CSRF protection menggunakan **Double Submit Cookie pattern**
+- Rate limiting: 5 gagal / 15 menit → block 30 menit
+- Session: 8 jam (atau sampai browser ditutup jika "Remember Me" tidak dicentang)

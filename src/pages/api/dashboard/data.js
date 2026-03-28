@@ -1,27 +1,31 @@
 import { getDashboardOverview, getSatelliteData, getWeatherData, getSystemAlerts } from '../../../lib/database.js';
+import { ok, fail, methodNotAllowed } from '../../../lib/apiResponse.js';
+import { authMiddleware } from '../../../lib/authMiddleware.js';
 
-export default async function handler(req, res) {
+export default authMiddleware(handler);
+
+async function handler(req, res) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return methodNotAllowed(res, ['GET']);
   }
 
   try {
     const { userId, kabupaten } = req.query;
 
     if (!userId || !kabupaten) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: userId and kabupaten' 
-      });
+      return fail(res, 400, 'MISSING_PARAMS', 'Parameter userId dan kabupaten wajib diisi.');
     }
 
-    // Get comprehensive dashboard data
-    const overview = await getDashboardOverview(userId, kabupaten);
-    const satelliteData = await getSatelliteData(kabupaten, 7); // Last 7 days
-    const weatherData = await getWeatherData(kabupaten, 7); // Last 7 days  
-    const alerts = await getSystemAlerts(kabupaten, true, 10); // Active alerts
+    // Get all dashboard data in parallel — single round-trip per function
+    const [overview, satelliteData, weatherData, alerts] = await Promise.all([
+      getDashboardOverview(userId, kabupaten),
+      getSatelliteData(kabupaten, 7),
+      getWeatherData(kabupaten, 7),
+      getSystemAlerts(kabupaten, true, 10),
+    ]);
 
     if (!overview.success) {
-      return res.status(500).json({ error: 'Failed to fetch overview data' });
+      return fail(res, 500, 'DATA_FETCH_ERROR', 'Gagal mengambil data overview dashboard.');
     }
 
     // Process satellite data for dashboard metrics
@@ -110,7 +114,7 @@ export default async function handler(req, res) {
 
     // Calculate crop health summary
     const cropHealthSummary = {
-      healthScore: 85.3 + (Math.random() * 10 - 5), // Based on fields data
+      healthScore: 85.3, // Calculated from actual field data in a future DB query
       totalArea: overview.data.fields.total_area || 0,
       riceFields: { area: 0, health: 87, growth: 'vegetative', yield: 'good' },
       cornFields: { area: 0, health: 82, growth: 'flowering', yield: 'excellent' },
@@ -238,23 +242,11 @@ export default async function handler(req, res) {
       ]
     };
 
-    return res.status(200).json({
-      success: true,
-      data: dashboardData,
-      metadata: {
-        userId,
-        kabupaten,
-        generated: new Date().toISOString(),
-        dataQuality: 'high'
-      }
-    });
+    return ok(res, dashboardData, { userId, kabupaten, generated: new Date().toISOString(), dataQuality: 'high' });
 
   } catch (error) {
     console.error('Dashboard API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return fail(res, 500, 'SERVER_ERROR', 'Terjadi kesalahan sistem.', error.message);
   }
 }
 

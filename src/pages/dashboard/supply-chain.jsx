@@ -13,10 +13,10 @@ import {
   FaMapMarkedAlt, FaQrcode, FaFileInvoiceDollar
 } from 'react-icons/fa';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, useAuth } from '../../contexts/AuthContext';
 
 const SupplyChainManagement = () => {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -31,22 +31,12 @@ const SupplyChainManagement = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   useEffect(() => {
-    const userData = localStorage.getItem('samikna_user') || sessionStorage.getItem('samikna_user');
-    if (userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        loadSupplyChainData(parsedUser);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        setError('Invalid user data');
-        setLoading(false);
-      }
+    if (user) {
+      loadSupplyChainData(user);
     } else {
-      setError('No user data found');
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const loadSupplyChainData = async (userData = user) => {
     if (!userData) return;

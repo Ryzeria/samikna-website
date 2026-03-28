@@ -2,18 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
-import { 
-  HiUser, HiLockClosed, HiEye, HiEyeOff, 
+import {
+  HiUser, HiLockClosed, HiEye, HiEyeOff,
   HiShieldCheck, HiLocationMarker, HiGlobe
 } from 'react-icons/hi';
 import { FaLeaf, FaSatellite, FaCloud } from 'react-icons/fa';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage = () => {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    username: '',
-    password: ''
-  });
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const [formData, setFormData] = useState({ username: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -21,64 +20,33 @@ const LoginPage = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    const token = localStorage.getItem('samikna_token');
-    if (token) {
+    if (!authLoading && isAuthenticated) {
       router.push('/dashboard');
     }
-  }, [router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
 
-    // Basic validation
     if (!formData.username.trim() || !formData.password) {
       setError('Username dan password wajib diisi');
-      setIsLoading(false);
       return;
     }
 
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: formData.username.trim().toLowerCase(),
-          password: formData.password
-        }),
-      });
+    setIsLoading(true);
+    setError('');
 
-      const data = await response.json();
+    const result = await login(formData.username, formData.password, rememberMe);
 
-      if (response.ok) {
-        // Store auth data
-        const storage = rememberMe ? localStorage : sessionStorage;
-        storage.setItem('samikna_token', data.token);
-        storage.setItem('samikna_user', JSON.stringify(data.user));
-        
-        // Clear form
-        setFormData({ username: '', password: '' });
-        
-        // Redirect with success message
-        router.push('/dashboard?login=success');
-      } else {
-        setError(data.message || 'Login gagal. Periksa kembali kredensial Anda.');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('Terjadi kesalahan koneksi. Silakan coba lagi.');
-    } finally {
+    if (result.success) {
+      router.push('/dashboard');
+    } else {
+      setError(result.error);
       setIsLoading(false);
     }
   };

@@ -1,20 +1,29 @@
+/**
+ * SERVER-SIDE ONLY — Do not import in client-side pages or components.
+ */
 import mysql from 'mysql2/promise';
 
 // Enhanced MariaDB Configuration for SAMIKNA Platform
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASS || !process.env.DB_NAME) {
+  throw new Error('Database environment variables (DB_HOST, DB_USER, DB_PASS, DB_NAME) are required but not set.');
+}
+
 const dbConfig = {
-  host: process.env.DB_HOST || 'srv566.hstgr.io',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'u722506862_samikna',
-  password: process.env.DB_PASS || 'S@m1Kn4!',
-  database: process.env.DB_NAME || 'u722506862_samikna',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   ssl: false,
-  connectTimeout: 60000,
+  connectTimeout: 30000,
   charset: 'utf8mb4',
   supportBigNumbers: true,
   bigNumberStrings: false,
   dateStrings: false,
   debug: false,
   multipleStatements: false,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
   typeCast: function (field, next) {
     if (field.type === 'TINY' && field.length === 1) {
       return (field.string() === '1');
@@ -23,71 +32,30 @@ const dbConfig = {
   }
 };
 
-// Connection pool for better performance
+// Singleton pool — created once synchronously, connections acquired lazily.
+// mysql.createPool() is synchronous and never throws; connections are made on demand.
 let pool = null;
 
-export async function createPool() {
+export function createPool() {
   if (!pool) {
-    try {
-      console.log('Creating SAMIKNA database connection pool...');
-      pool = mysql.createPool({
-        ...dbConfig,
-        connectionLimit: 15,
-        queueLimit: 0,
-        reconnect: true,
-        idleTimeout: 300000,
-        maxReconnects: 3,
-        reconnectDelay: 2000
-      });
-      
-      console.log('Database pool created successfully');
-      
-      // Test the pool
-      const connection = await pool.getConnection();
-      await connection.ping();
-      connection.release();
-      console.log('Database pool test successful');
-      
-      return pool;
-    } catch (error) {
-      console.error('Failed to create database pool:', error);
-      throw error;
-    }
+    pool = mysql.createPool({
+      ...dbConfig,
+      connectionLimit: 5,
+      waitForConnections: true,
+      queueLimit: 30,
+    });
   }
   return pool;
 }
 
+/**
+ * Returns a pool connection. Caller MUST call connection.release() when done.
+ */
 export async function connectDB() {
   try {
-    console.log('Connecting to SAMIKNA database...');
-    
-    const connection = await mysql.createConnection(dbConfig);
-    
-    // Test connection
-    await connection.execute('SELECT 1 as connection_test');
-    console.log('Database connected successfully');
-    
-    return connection;
+    return await createPool().getConnection();
   } catch (error) {
     console.error('Database connection failed:', error.message);
-    
-    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      console.log('Trying alternative connection methods...');
-      
-      try {
-        const altConfig = {
-          ...dbConfig,
-          ssl: { rejectUnauthorized: false }
-        };
-        const connection = await mysql.createConnection(altConfig);
-        await connection.execute('SELECT 1 as test');
-        console.log('Connected using alternative SSL config');
-        return connection;
-      } catch (altError) {
-        console.log('Alternative connection failed:', altError.message);
-      }
-    }
-    
     throw new Error(`SAMIKNA database connection failed: ${error.message}`);
   }
 }
@@ -135,7 +103,7 @@ export async function authenticateUser(username, password) {
     console.error('Authentication error:', error);
     return { success: false, message: 'Authentication failed' };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -158,7 +126,7 @@ export async function getUserById(userId) {
     console.error('Error fetching user:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -187,7 +155,7 @@ export async function updateUserProfile(userId, profileData) {
     console.error('Error updating profile:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -226,7 +194,7 @@ export async function getFieldsByUser(userId, kabupaten = null) {
     console.error('Error fetching agricultural fields:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -251,7 +219,7 @@ export async function getFieldById(fieldId, userId = null) {
     console.error('Error fetching field:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -287,7 +255,7 @@ export async function createField(userId, fieldData) {
     console.error('Error creating field:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -323,7 +291,7 @@ export async function updateField(fieldId, userId, fieldData) {
     console.error('Error updating field:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -343,7 +311,7 @@ export async function deleteField(fieldId, userId) {
     console.error('Error deleting field:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -392,7 +360,7 @@ export async function getCropActivities(userId, fieldId = null, dateRange = 30, 
     console.error('Error fetching crop activities:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -430,7 +398,7 @@ export async function createCropActivity(userId, activityData) {
     console.error('Error creating crop activity:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -469,7 +437,7 @@ export async function updateCropActivity(activityId, userId, activityData) {
     console.error('Error updating crop activity:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -477,23 +445,85 @@ export async function deleteCropActivity(activityId, userId) {
   let connection = null;
   try {
     connection = await connectDB();
-    
+
     await connection.execute(
       'DELETE FROM crop_activities WHERE id = ? AND user_id = ?',
       [activityId, userId]
     );
-    
+
     return { success: true, message: 'Activity deleted successfully' };
-    
+
   } catch (error) {
     console.error('Error deleting crop activity:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
+  }
+}
+
+export async function getCropActivityById(activityId, userId = null) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+
+    let query = `
+      SELECT ca.*, af.field_name, af.crop_type
+      FROM crop_activities ca
+      LEFT JOIN agricultural_fields af ON ca.field_id = af.id
+      WHERE ca.id = ?
+    `;
+    const params = [activityId];
+
+    if (userId) {
+      query += ' AND ca.user_id = ?';
+      params.push(userId);
+    }
+
+    const [results] = await connection.execute(query, params);
+    if (results.length === 0) return { success: false, message: 'Activity not found' };
+
+    const activity = {
+      ...results[0],
+      materials_used: results[0].materials_used ? JSON.parse(results[0].materials_used) : [],
+      equipment_used: results[0].equipment_used ? JSON.parse(results[0].equipment_used) : [],
+    };
+
+    return { success: true, data: activity };
+
+  } catch (error) {
+    console.error('Error fetching crop activity by id:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
   }
 }
 
 // ===================== SUPPLY CHAIN MANAGEMENT =====================
+
+export async function getInventoryItemById(itemId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+
+    const [results] = await connection.execute(
+      `SELECT sci.*, s.supplier_name, s.contact_person, s.rating
+       FROM supply_chain_items sci
+       LEFT JOIN suppliers s ON sci.supplier_id = s.id
+       WHERE sci.id = ?`,
+      [itemId]
+    );
+
+    return results.length > 0
+      ? { success: true, data: results[0] }
+      : { success: false, message: 'Item not found' };
+
+  } catch (error) {
+    console.error('Error fetching inventory item by id:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
+  }
+}
 
 export async function getInventoryItems(userId, category = null, status = null, limit = 100) {
   let connection = null;
@@ -531,7 +561,7 @@ export async function getInventoryItems(userId, category = null, status = null, 
     console.error('Error fetching inventory items:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -566,7 +596,7 @@ export async function createInventoryItem(itemData) {
     console.error('Error creating inventory item:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -599,7 +629,7 @@ export async function updateInventoryItem(itemId, itemData) {
     console.error('Error updating inventory item:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -616,7 +646,7 @@ export async function deleteInventoryItem(itemId) {
     console.error('Error deleting inventory item:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -654,7 +684,7 @@ export async function getSuppliers(category = null, status = 'active') {
     console.error('Error fetching suppliers:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -702,7 +732,7 @@ export async function getSupplyChainOrders(userId, status = null, limit = 50) {
     console.error('Error fetching supply chain orders:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -756,13 +786,113 @@ export async function createSupplyChainOrder(userId, orderData) {
     
     await connection.commit();
     return { success: true, orderId, orderNumber, message: 'Order created successfully' };
-    
+
   } catch (error) {
     if (connection) await connection.rollback();
     console.error('Error creating supply chain order:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
+  }
+}
+
+export async function getOrderById(orderId, userId = null) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+
+    let query = `
+      SELECT sco.*, s.supplier_name, s.contact_person, s.phone
+      FROM supply_chain_orders sco
+      LEFT JOIN suppliers s ON sco.supplier_id = s.id
+      WHERE sco.id = ?
+    `;
+    const params = [orderId];
+
+    if (userId) {
+      query += ' AND sco.user_id = ?';
+      params.push(userId);
+    }
+
+    const [orders] = await connection.execute(query, params);
+    if (orders.length === 0) return { success: false, message: 'Order not found' };
+
+    const [items] = await connection.execute(
+      `SELECT soi.*, sci.item_name, sci.unit_of_measure
+       FROM supply_chain_order_items soi
+       LEFT JOIN supply_chain_items sci ON soi.item_id = sci.id
+       WHERE soi.order_id = ?`,
+      [orderId]
+    );
+
+    return { success: true, data: { ...orders[0], items } };
+
+  } catch (error) {
+    console.error('Error fetching order by id:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+export async function updateSupplyChainOrder(orderId, userId, orderData) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+
+    const {
+      order_status, payment_status, actual_delivery_date,
+      priority_level, order_notes
+    } = orderData;
+
+    await connection.execute(
+      `UPDATE supply_chain_orders SET
+        order_status = COALESCE(?, order_status),
+        payment_status = COALESCE(?, payment_status),
+        actual_delivery_date = COALESCE(?, actual_delivery_date),
+        priority_level = COALESCE(?, priority_level),
+        order_notes = COALESCE(?, order_notes),
+        updated_at = NOW()
+       WHERE id = ? AND user_id = ?`,
+      [order_status, payment_status, actual_delivery_date, priority_level, order_notes, orderId, userId]
+    );
+
+    return { success: true, message: 'Order updated successfully' };
+
+  } catch (error) {
+    console.error('Error updating supply chain order:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+export async function deleteSupplyChainOrder(orderId, userId) {
+  let connection = null;
+  try {
+    connection = await connectDB();
+    await connection.beginTransaction();
+
+    // Remove order items first (FK constraint)
+    await connection.execute(
+      'DELETE FROM supply_chain_order_items WHERE order_id = ?',
+      [orderId]
+    );
+
+    await connection.execute(
+      'DELETE FROM supply_chain_orders WHERE id = ? AND user_id = ?',
+      [orderId, userId]
+    );
+
+    await connection.commit();
+    return { success: true, message: 'Order deleted successfully' };
+
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error('Error deleting supply chain order:', error);
+    return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
   }
 }
 
@@ -806,7 +936,7 @@ export async function getSatelliteData(kabupaten, dateRange = 30, limit = 100) {
     console.error('Error fetching satellite data:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -829,7 +959,7 @@ export async function getLatestSatelliteData(kabupaten) {
     console.error('Error fetching latest satellite data:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -935,7 +1065,7 @@ export async function getWeatherData(kabupaten, dateRange = 30, limit = 100) {
     console.error('Error fetching weather data:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -958,7 +1088,7 @@ export async function getCurrentWeather(kabupaten) {
     console.error('Error fetching current weather:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -1057,7 +1187,7 @@ export async function getSystemAlerts(kabupaten = null, isActive = true, limit =
     console.error('Error fetching system alerts:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -1088,7 +1218,7 @@ export async function createSystemAlert(alertData) {
     console.error('Error creating system alert:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -1121,18 +1251,24 @@ export async function getDashboardOverview(userId, kabupaten) {
     );
     
     const [inventoryStats] = await connection.execute(
-      `SELECT 
+      `SELECT
         COUNT(*) as total_items,
         SUM(total_value) as total_value,
         SUM(CASE WHEN stock_status = 'low' OR stock_status = 'critical' THEN 1 ELSE 0 END) as low_stock_items
        FROM supply_chain_items`
     );
-    
-    // Get latest satellite data
-    const satelliteData = await getLatestSatelliteData(kabupaten);
-    
-    // Get current weather
-    const weatherData = await getCurrentWeather(kabupaten);
+
+    // Inline satellite + weather — reuse the same connection, no extra TCP round-trips
+    const [satRows] = await connection.execute(
+      `SELECT * FROM satellite_data WHERE kabupaten = ? ORDER BY data_date DESC, data_time DESC LIMIT 1`,
+      [kabupaten]
+    );
+    const [wxRows] = await connection.execute(
+      `SELECT * FROM weather_data WHERE kabupaten = ? ORDER BY data_date DESC, data_time DESC LIMIT 1`,
+      [kabupaten]
+    );
+    const satelliteData = { success: satRows.length > 0, data: satRows[0] || null };
+    const weatherData   = { success: wxRows.length  > 0, data: wxRows[0]  || null };
     
     return {
       success: true,
@@ -1151,7 +1287,7 @@ export async function getDashboardOverview(userId, kabupaten) {
     console.error('Error fetching dashboard overview:', error);
     return { success: false, error: error.message };
   } finally {
-    if (connection) await connection.end();
+    if (connection) connection.release();
   }
 }
 
@@ -1214,24 +1350,15 @@ export async function testConnection() {
       timestamp: new Date().toISOString()
     };
   } finally {
-    if (connection) {
-      try {
-        await connection.end();
-        console.log('Database connection closed');
-      } catch (closeError) {
-        console.log('Error closing connection:', closeError.message);
-      }
-    }
+    if (connection) connection.release();
   }
 }
 
 export async function closeDB() {
   try {
     if (pool) {
-      console.log('Closing SAMIKNA database pool...');
       await pool.end();
       pool = null;
-      console.log('Database pool closed');
     }
   } catch (error) {
     console.error('Error closing database pool:', error);

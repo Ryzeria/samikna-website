@@ -1,6 +1,8 @@
-import { 
-  getFieldsByUser, 
-  getCropActivities, 
+import {
+  getFieldsByUser,
+  getFieldById,
+  getCropActivities,
+  getCropActivityById,
   createCropActivity,
   createField,
   updateField,
@@ -8,33 +10,28 @@ import {
   deleteField,
   deleteCropActivity,
   getSatelliteData,
-  getWeatherData 
+  getWeatherData
 } from '../../../lib/database.js';
+import { ok, fail, methodNotAllowed } from '../../../lib/apiResponse.js';
+import { authMiddleware } from '../../../lib/authMiddleware.js';
+import { validateCropField } from '../../../lib/validators.js';
 
-export default async function handler(req, res) {
+export default authMiddleware(async function handler(req, res) {
   const { method } = req;
 
   try {
     switch (method) {
-      case 'GET':
-        return await handleGet(req, res);
-      case 'POST':
-        return await handlePost(req, res);
-      case 'PUT':
-        return await handlePut(req, res);
-      case 'DELETE':
-        return await handleDelete(req, res);
-      default:
-        return res.status(405).json({ error: 'Method not allowed' });
+      case 'GET':    return await handleGet(req, res);
+      case 'POST':   return await handlePost(req, res);
+      case 'PUT':    return await handlePut(req, res);
+      case 'DELETE': return await handleDelete(req, res);
+      default:       return methodNotAllowed(res, ['GET', 'POST', 'PUT', 'DELETE']);
     }
   } catch (error) {
     console.error('Crop management API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return fail(res, 500, 'SERVER_ERROR', 'Terjadi kesalahan sistem.', error.message);
   }
-}
+});
 
 async function handleGet(req, res) {
   const { userId, kabupaten, type = 'overview', fieldId, activityId } = req.query;
@@ -100,10 +97,10 @@ async function handleGet(req, res) {
 
         // Process fields with calculated health scores and status
         const processedFields = fields.map(field => {
-          const healthScore = parseFloat(field.health_score || 0) || (75 + Math.random() * 20);
-          const ndvi = parseFloat(field.current_ndvi || 0) || (0.5 + Math.random() * 0.3);
-          const soilMoisture = parseFloat(field.current_soil_moisture || 0) || (45 + Math.random() * 30);
-          const temperature = parseFloat(field.current_temperature || 0) || (26 + Math.random() * 8);
+          const healthScore = parseFloat(field.health_score) || 0;
+          const ndvi = parseFloat(field.current_ndvi) || 0;
+          const soilMoisture = parseFloat(field.current_soil_moisture) || 0;
+          const temperature = parseFloat(field.current_temperature) || 0;
 
           // Determine field status based on growth stage and health
           let status = field.field_status || 'active';
@@ -254,9 +251,17 @@ async function handlePost(req, res) {
 
   try {
     switch (type) {
-      case 'create_field':
+      case 'create_field': {
+        const fieldValidation = validateCropField(data);
+        if (!fieldValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: fieldValidation.errors[0], detail: fieldValidation.errors }
+          });
+        }
         const fieldResult = await createField(userId, data);
         return res.status(fieldResult.success ? 201 : 400).json(fieldResult);
+      }
 
       case 'create_activity':
         const activityResult = await createCropActivity(userId, data);
@@ -288,9 +293,17 @@ async function handlePut(req, res) {
 
   try {
     switch (type) {
-      case 'update_field':
+      case 'update_field': {
+        const fieldValidation = validateCropField(data);
+        if (!fieldValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: fieldValidation.errors[0], detail: fieldValidation.errors }
+          });
+        }
         const fieldResult = await updateField(id, userId, data);
         return res.status(fieldResult.success ? 200 : 400).json(fieldResult);
+      }
 
       case 'update_activity':
         const activityResult = await updateCropActivity(id, userId, data);
@@ -419,9 +432,9 @@ function generateWeatherForecast() {
     
     forecast.push({
       date: date.toISOString().split('T')[0],
-      temp: Math.round(28 + (Math.random() - 0.5) * 6),
-      rain: Math.round(Math.random() * 15),
-      condition: ['Cerah', 'Berawan', 'Hujan ringan'][Math.floor(Math.random() * 3)]
+      temp: null,
+      rain: null,
+      condition: null
     });
   }
   return forecast;

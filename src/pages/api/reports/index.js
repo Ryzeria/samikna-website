@@ -11,26 +11,23 @@ import {
   getSupplyChainOrders
 } from '../../../lib/database.js';
 
-export default async function handler(req, res) {
+import { ok, fail, methodNotAllowed } from '../../../lib/apiResponse.js';
+import { authMiddleware } from '../../../lib/authMiddleware.js';
+
+export default authMiddleware(async function handler(req, res) {
   const { method } = req;
 
   try {
     switch (method) {
-      case 'GET':
-        return await handleGet(req, res);
-      case 'POST':
-        return await handlePost(req, res);
-      default:
-        return res.status(405).json({ error: 'Method not allowed' });
+      case 'GET':  return await handleGet(req, res);
+      case 'POST': return await handlePost(req, res);
+      default:     return methodNotAllowed(res, ['GET', 'POST']);
     }
   } catch (error) {
     console.error('Reports API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return fail(res, 500, 'SERVER_ERROR', 'Terjadi kesalahan sistem.', error.message);
   }
-}
+});
 
 async function handleGet(req, res) {
   const { userId, kabupaten, type, dateRange = '30', format } = req.query;
@@ -92,8 +89,6 @@ async function handlePost(req, res) {
 
 async function generateComprehensiveReport(userId, kabupaten, days) {
   try {
-    console.log(`Generating comprehensive report for user ${userId}, kabupaten ${kabupaten}, ${days} days`);
-
     // Parallel data fetching for better performance
     const [
       fieldsResult,
@@ -686,8 +681,6 @@ function generateCSV(reportData) {
 
 async function scheduleReport(userId, kabupaten, reportConfig) {
   // In production, this would integrate with a job scheduler
-  console.log(`Scheduling report for user ${userId}, kabupaten ${kabupaten}`);
-  console.log('Report config:', reportConfig);
   
   // Simulate scheduling
   return {
@@ -700,8 +693,6 @@ async function scheduleReport(userId, kabupaten, reportConfig) {
 
 async function exportReport(userId, kabupaten, reportConfig) {
   // In production, this would queue the export job
-  console.log(`Exporting report for user ${userId}, kabupaten ${kabupaten}`);
-  console.log('Export config:', reportConfig);
   
   return {
     success: true,

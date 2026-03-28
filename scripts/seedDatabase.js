@@ -1,13 +1,14 @@
+require('dotenv').config({ path: '.env.local' });
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 // Enhanced MariaDB Configuration
 const dbConfig = {
-  host: 'srv566.hstgr.io',
-  port: 3306,
-  user: 'u722506862_samikna',
-  password: 'S@m1Kn4!',
-  database: 'u722506862_samikna',
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   ssl: false,
   connectTimeout: 60000,
   charset: 'utf8mb4'

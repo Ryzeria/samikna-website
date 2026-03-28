@@ -28,16 +28,8 @@ const Footer = () => {
   }, []);
 
   useEffect(() => {
-    // Simulate visitor counter
-    const totalVisitors = Math.floor(Math.random() * 5000) + 1000;
-    const todayVisitors = Math.floor(Math.random() * 100) + 20;
-    const monthlyVisitors = Math.floor(Math.random() * 1000) + 200;
-
-    setVisitorData({
-      total: totalVisitors,
-      today: todayVisitors,
-      thisMonth: monthlyVisitors
-    });
+    // Visitor counter placeholder — replace with real analytics API when available
+    setVisitorData({ total: 0, today: 0, thisMonth: 0 });
   }, []);
 
   const scrollToTop = () => {
@@ -303,7 +295,7 @@ const Footer = () => {
                   src={companyInfo.mapLink}
                   width="100%"
                   height="200"
-                  style={{ border: 0 }}
+                  className="border-0"
                   allowFullScreen=""
                   loading="lazy"
                   title="SAMIKNA Location - Departemen Teknik Geomatika ITS"

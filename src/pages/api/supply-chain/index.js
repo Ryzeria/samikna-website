@@ -1,37 +1,36 @@
-import { 
-  getInventoryItems, 
-  getSuppliers, 
+import {
+  getInventoryItems,
+  getInventoryItemById,
+  getSuppliers,
   getSupplyChainOrders,
+  getOrderById,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
-  createSupplyChainOrder
+  createSupplyChainOrder,
+  updateSupplyChainOrder,
+  deleteSupplyChainOrder
 } from '../../../lib/database.js';
+import { ok, fail, methodNotAllowed } from '../../../lib/apiResponse.js';
+import { authMiddleware } from '../../../lib/authMiddleware.js';
+import { validateInventoryItem } from '../../../lib/validators.js';
 
-export default async function handler(req, res) {
+export default authMiddleware(async function handler(req, res) {
   const { method } = req;
 
   try {
     switch (method) {
-      case 'GET':
-        return await handleGet(req, res);
-      case 'POST':
-        return await handlePost(req, res);
-      case 'PUT':
-        return await handlePut(req, res);
-      case 'DELETE':
-        return await handleDelete(req, res);
-      default:
-        return res.status(405).json({ error: 'Method not allowed' });
+      case 'GET':    return await handleGet(req, res);
+      case 'POST':   return await handlePost(req, res);
+      case 'PUT':    return await handlePut(req, res);
+      case 'DELETE': return await handleDelete(req, res);
+      default:       return methodNotAllowed(res, ['GET', 'POST', 'PUT', 'DELETE']);
     }
   } catch (error) {
     console.error('Supply chain API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return fail(res, 500, 'SERVER_ERROR', 'Terjadi kesalahan sistem.', error.message);
   }
-}
+});
 
 async function handleGet(req, res) {
   const { userId, type = 'overview', category, status, itemId, orderId } = req.query;
@@ -59,17 +58,15 @@ async function handleGet(req, res) {
         break;
         
       case 'overview':
-      default:
-        // Get inventory items
-        const inventoryData = await getInventoryItems(userId, category, status, 100);
+      default: {
+        // Fetch all three in parallel
+        const [inventoryData, suppliersData, ordersData] = await Promise.all([
+          getInventoryItems(userId, category, status, 100),
+          getSuppliers(),
+          getSupplyChainOrders(userId, null, 50),
+        ]);
         const inventory = inventoryData.success ? inventoryData.data : [];
-
-        // Get suppliers
-        const suppliersData = await getSuppliers();
         const suppliers = suppliersData.success ? suppliersData.data : [];
-
-        // Get orders
-        const ordersData = await getSupplyChainOrders(userId, null, 50);
         const orders = ordersData.success ? ordersData.data : [];
 
         // Calculate overview metrics
@@ -203,6 +200,7 @@ async function handleGet(req, res) {
             generated: new Date().toISOString()
           }
         });
+      }
     }
 
   } catch (error) {
@@ -228,9 +226,17 @@ async function handlePost(req, res) {
 
   try {
     switch (type) {
-      case 'create_item':
+      case 'create_item': {
+        const itemValidation = validateInventoryItem(data);
+        if (!itemValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: itemValidation.errors[0], detail: itemValidation.errors }
+          });
+        }
         const itemResult = await createInventoryItem(data);
         return res.status(itemResult.success ? 201 : 400).json(itemResult);
+      }
 
       case 'update_stock':
         const stockResult = await updateInventoryStock(data.itemId, data.quantity, data.type, userId);
@@ -266,9 +272,17 @@ async function handlePut(req, res) {
 
   try {
     switch (type) {
-      case 'update_item':
+      case 'update_item': {
+        const itemValidation = validateInventoryItem(data);
+        if (!itemValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: itemValidation.errors[0], detail: itemValidation.errors }
+          });
+        }
         const itemResult = await updateInventoryItem(id, data);
         return res.status(itemResult.success ? 200 : 400).json(itemResult);
+      }
 
       case 'update_order':
         const orderResult = await updateSupplyChainOrder(id, userId, data);
@@ -375,7 +389,7 @@ function generateMonthlySpending(orders) {
   
   return months.map(month => ({
     month,
-    amount: monthlyData[month] || (Math.floor(Math.random() * 200000000) + 150000000)
+    amount: monthlyData[month] || 0
   }));
 }
 

@@ -1,0 +1,185 @@
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { HiX } from 'react-icons/hi';
+
+export default function EditFieldModal({ field, growthStages, loading, onClose, onSubmit }) {
+  return (
+    <AnimatePresence>
+      {field && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Edit Field</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+                <HiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => { e.preventDefault(); onSubmit(field.id, new FormData(e.target)); }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Field Name *</label>
+                  <input
+                    type="text"
+                    name="field_name"
+                    defaultValue={field.name}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Growth Stage</label>
+                  <select name="growth_stage" defaultValue={field.growthStage} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    {growthStages.map((stage) => (
+                      <option key={stage.id} value={stage.id}>{stage.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Location Address</label>
+                <input
+                  type="text"
+                  name="location_address"
+                  defaultValue={field.location}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Area (hectares) *</label>
+                  <input
+                    type="number"
+                    name="area_hectares"
+                    step="0.1"
+                    min="0"
+                    defaultValue={field.area}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
+                  <input
+                    type="number"
+                    name="coordinates_lat"
+                    step="any"
+                    defaultValue={field.coordinates?.lat}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
+                  <input
+                    type="number"
+                    name="coordinates_lng"
+                    step="any"
+                    defaultValue={field.coordinates?.lng}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Crop Variety</label>
+                  <input
+                    type="text"
+                    name="crop_variety"
+                    defaultValue={field.variety}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Field Status</label>
+                  <select name="field_status" defaultValue={field.status} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    <option value="active">Active</option>
+                    <option value="fallow">Fallow</option>
+                    <option value="preparation">Preparation</option>
+                    <option value="harvested">Harvested</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expected Harvest Date</label>
+                <input
+                  type="date"
+                  name="expected_harvest_date"
+                  defaultValue={field.harvestDate}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name</label>
+                  <input
+                    type="text"
+                    name="owner_name"
+                    defaultValue={field.owner}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Supervisor Name</label>
+                  <input
+                    type="text"
+                    name="supervisor_name"
+                    defaultValue={field.supervisor}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Field Notes</label>
+                <textarea
+                  name="field_notes"
+                  rows={3}
+                  defaultValue={field.notes}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                >
+                  {loading ? 'Updating...' : 'Update Field'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

@@ -2,22 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
-import { 
-  HiTrendingUp, HiTrendingDown, HiEye, HiDownload, HiRefresh, 
+import {
+  HiTrendingUp, HiTrendingDown, HiEye, HiDownload, HiRefresh,
   HiCalendar, HiLocationMarker, HiInformationCircle, HiCog,
   HiChartBar, HiGlobe, HiBell, HiPlay, HiPause, HiExclamation
 } from 'react-icons/hi';
-import { 
-  FaSatellite, FaCloud, FaThermometerHalf, FaTint, FaLeaf, 
+import {
+  FaSatellite, FaCloud, FaThermometerHalf, FaTint, FaLeaf,
   FaSeedling, FaChartLine, FaGlobe, FaRobot, FaCamera,
   FaMapMarkedAlt, FaFileAlt, FaUsers, FaTractor, FaIndustry
 } from 'react-icons/fa';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, useAuth } from '../../contexts/AuthContext';
+import { apiFetch } from '../../lib/apiClient';
 
 const Dashboard = () => {
   const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTimeRange, setSelectedTimeRange] = useState('7days');
@@ -27,278 +28,77 @@ const Dashboard = () => {
   const [satelliteConnected, setSatelliteConnected] = useState(true);
   const [weatherConnected, setWeatherConnected] = useState(true);
 
-  useEffect(() => {
-    const userData = localStorage.getItem('samikna_user') || sessionStorage.getItem('samikna_user');
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
+  // quickActions are client-side only (use router.push) — defined before loadDashboardData
+  const quickActions = [
+    {
+      title: 'Satellite Analysis',
+      description: 'View latest NDVI and vegetation health',
+      icon: FaSatellite,
+      color: 'blue',
+      action: () => router.push('/dashboard/maps'),
+      count: null
+    },
+    {
+      title: 'Weather Forecast',
+      description: '7-day weather prediction and alerts',
+      icon: FaCloud,
+      color: 'indigo',
+      action: () => window.open('https://bmkg.go.id', '_blank'),
+      count: '12 stations'
+    },
+    {
+      title: 'Crop Management',
+      description: 'Monitor activities and field operations',
+      icon: FaLeaf,
+      color: 'green',
+      action: () => router.push('/dashboard/crop-management'),
+      count: null
+    },
+    {
+      title: 'AI Assistant',
+      description: 'Get insights and recommendations',
+      icon: FaRobot,
+      color: 'purple',
+      action: () => router.push('/dashboard/chatbot'),
+      count: 'Online'
     }
-    
-    loadDashboardData();
-    
-    // Auto-refresh functionality
-    let interval;
-    if (autoRefresh) {
-      interval = setInterval(loadDashboardData, 5 * 60 * 1000);
-    }
-    return () => clearInterval(interval);
-  }, [selectedTimeRange, autoRefresh]);
+  ];
 
   const loadDashboardData = useCallback(async () => {
+    if (!user?.id || !user?.kabupaten) return;
     setLoading(true);
-    
+
     try {
-      // Simulate API call with real-world delays
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const currentDate = new Date();
-      const mockData = {
-        overview: {
-          totalArea: 2847,
-          monitoredFields: 145,
-          activeWeatherStations: 12,
-          lastSatellitePass: '2 jam yang lalu',
-          dataQuality: 94.2,
-          systemUptime: 99.7,
-          activeAlerts: 3,
-          completedTasks: 78
-        },
-        satellite: {
-          ndvi: {
-            current: 0.65 + (Math.random() * 0.1 - 0.05),
-            previous: 0.62,
-            trend: 'up',
-            status: 'optimal',
-            confidence: 96.8,
-            coverage: 89.2
-          },
-          landSurfaceTemp: {
-            current: 28.4 + (Math.random() * 4 - 2),
-            previous: 29.1,
-            trend: 'down',
-            unit: '°C',
-            confidence: 94.5
-          },
-          soilMoisture: {
-            current: 67.2 + (Math.random() * 10 - 5),
-            previous: 64.8,
-            trend: 'up',
-            unit: '%',
-            confidence: 92.1
-          },
-          cloudCoverage: {
-            current: 15.3 + (Math.random() * 20),
-            previous: 22.1,
-            trend: 'down',
-            unit: '%',
-            confidence: 98.2
-          }
-        },
-        weather: {
-          temperature: { 
-            current: 29 + (Math.random() * 6 - 3), 
-            min: 24, 
-            max: 34, 
-            unit: '°C',
-            trend: 'stable'
-          },
-          humidity: { 
-            current: 78 + (Math.random() * 20 - 10), 
-            unit: '%',
-            comfort: 'optimal'
-          },
-          rainfall: { 
-            today: 5.2 + (Math.random() * 10), 
-            yesterday: 12.8, 
-            week: 45.6,
-            unit: 'mm',
-            prediction: 'light'
-          },
-          windSpeed: { 
-            current: 8.5 + (Math.random() * 10), 
-            direction: 'SW', 
-            unit: 'km/h',
-            gusts: 15.2
-          },
-          pressure: { 
-            current: 1012.3 + (Math.random() * 10 - 5), 
-            unit: 'hPa',
-            trend: 'rising'
-          },
-          uvIndex: { 
-            current: 7 + Math.floor(Math.random() * 4), 
-            level: 'High',
-            protection: 'required'
-          }
-        },
-        crops: {
-          healthScore: 85.3 + (Math.random() * 10 - 5),
-          totalArea: 2847,
-          riceFields: { area: 1247, health: 87, growth: 'vegetative', yield: 'good' },
-          cornFields: { area: 892, health: 82, growth: 'flowering', yield: 'excellent' },
-          soybeanFields: { area: 708, health: 89, growth: 'mature', yield: 'good' },
-          activities: {
-            completed: 23,
-            ongoing: 12,
-            planned: 18,
-            overdue: 2
-          }
-        },
-        alerts: [
-          {
-            id: 1,
-            type: 'weather',
-            severity: 'medium',
-            title: 'Potensi Hujan Lebat',
-            message: 'Prediksi hujan 20-30mm dalam 6 jam ke depan di sektor utara',
-            location: 'Kecamatan Singosari, Blok A1-A5',
-            time: '30 menit yang lalu',
-            action: 'Siapkan sistem drainase dan tutup aktivitas outdoor',
-            impact: 'medium',
-            automated: true
-          },
-          {
-            id: 2,
-            type: 'satellite',
-            severity: 'low',
-            title: 'NDVI Menurun Sedikit',
-            message: 'Penurunan NDVI 0.02 terdeteksi di area blok C-7, kemungkinan stress nitrogen',
-            location: 'Desa Purwodadi, Blok C-7',
-            time: '2 jam yang lalu',
-            action: 'Lakukan soil test dan aplikasi pupuk nitrogen',
-            impact: 'low',
-            automated: true
-          },
-          {
-            id: 3,
-            type: 'system',
-            severity: 'info',
-            title: 'Update Data Satelit',
-            message: 'Data Landsat-8 terbaru berhasil diproses dan tersedia untuk analisis',
-            location: 'Seluruh wilayah monitoring',
-            time: '4 jam yang lalu',
-            action: 'Review hasil analisis di menu Satellite Maps',
-            impact: 'positive',
-            automated: false
-          },
-          {
-            id: 4,
-            type: 'equipment',
-            severity: 'high',
-            title: 'Maintenance Required',
-            message: 'Traktor unit TR-003 memerlukan maintenance rutin dalam 48 jam',
-            location: 'Gudang Equipment A',
-            time: '6 jam yang lalu',
-            action: 'Schedule maintenance dengan teknisi terdekat',
-            impact: 'medium',
-            automated: true
-          }
-        ],
-        recentActivity: [
-          { 
-            action: 'NDVI Analysis completed for Sector A', 
-            time: '10 menit yang lalu', 
-            status: 'success',
-            user: 'System Auto',
-            details: 'Coverage: 245 Ha, Health Score: 87%'
-          },
-          { 
-            action: 'Weather data synchronized from BMKG', 
-            time: '15 menit yang lalu', 
-            status: 'success',
-            user: 'Weather API',
-            details: '12 stations, 98% data quality'
-          },
-          { 
-            action: 'Satellite image processed (Landsat-8)', 
-            time: '1 jam yang lalu', 
-            status: 'success',
-            user: 'Google Earth Engine',
-            details: 'Scene ID: LC08_L1TP_118065_20240115'
-          },
-          { 
-            action: 'Monthly crop report generated', 
-            time: '3 jam yang lalu', 
-            status: 'info',
-            user: user?.kabupaten || 'Admin',
-            details: 'PDF exported, 45 pages'
-          },
-          { 
-            action: 'Supply chain inventory updated', 
-            time: '5 jam yang lalu', 
-            status: 'success',
-            user: 'Inventory System',
-            details: '156 items synchronized'
-          }
-        ],
-        quickActions: [
-          {
-            title: 'Satellite Analysis',
-            description: 'View latest NDVI and vegetation health',
-            icon: FaSatellite,
-            color: 'blue',
-            action: () => router.push('/dashboard/maps'),
-            count: '89 images'
-          },
-          {
-            title: 'Weather Forecast',
-            description: '7-day weather prediction and alerts',
-            icon: FaCloud,
-            color: 'indigo',
-            action: () => window.open('https://bmkg.go.id', '_blank'),
-            count: '12 stations'
-          },
-          {
-            title: 'Crop Management',
-            description: 'Monitor activities and field operations',
-            icon: FaLeaf,
-            color: 'green',
-            action: () => router.push('/dashboard/crop-management'),
-            count: '12 active'
-          },
-          {
-            title: 'AI Assistant',
-            description: 'Get insights and recommendations',
-            icon: FaRobot,
-            color: 'purple',
-            action: () => router.push('/dashboard/chatbot'),
-            count: 'Online'
-          }
-        ],
-        systemStatus: {
-          satellite: {
-            status: 'connected',
-            lastUpdate: currentDate,
-            nextPass: new Date(currentDate.getTime() + 4 * 60 * 60 * 1000),
-            coverage: 89.2
-          },
-          weather: {
-            status: 'connected',
-            stationsActive: 12,
-            dataQuality: 98.5,
-            lastSync: new Date(currentDate.getTime() - 15 * 60 * 1000)
-          },
-          ai: {
-            status: 'online',
-            responseTime: 1.2,
-            accuracy: 94.8,
-            queriesProcessed: 1247
-          }
-        }
-      };
-      
-      setDashboardData(mockData);
+      const res = await apiFetch(
+        `/api/dashboard/data?userId=${encodeURIComponent(user.id)}&kabupaten=${encodeURIComponent(user.kabupaten)}`
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Gagal memuat data dashboard');
+      }
+
+      // Merge API data with client-side quickActions
+      setDashboardData({ ...json.data, quickActions });
       setLastUpdate(new Date());
-      
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  }, [router, user]);
+  }, [user]);
+
+  // Load data when user is ready or selectedTimeRange changes
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData, selectedTimeRange]);
+
+  // Auto-refresh every 5 minutes (separate effect so it doesn't re-trigger an immediate load)
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, loadDashboardData]);
 
   const handleQuickAction = (action) => {
     if (typeof action === 'function') {
@@ -325,14 +125,16 @@ const Dashboard = () => {
   };
 
   const formatTimeAgo = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    if (!d || isNaN(d.getTime())) return '—';
     const now = new Date();
-    const diff = now - date;
+    const diff = now - d;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
-    
+
     if (minutes < 60) return `${minutes} menit yang lalu`;
     if (hours < 24) return `${hours} jam yang lalu`;
-    return date.toLocaleDateString('id-ID');
+    return d.toLocaleDateString('id-ID');
   };
 
   if (loading || !dashboardData) {
@@ -613,7 +415,12 @@ const Dashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(dashboardData.satellite).map(([key, data], index) => {
+              {!dashboardData.satellite ? (
+                <div className="col-span-4 text-center py-8 text-gray-400">
+                  <FaSatellite className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Data satelit belum tersedia untuk wilayah ini.</p>
+                </div>
+              ) : Object.entries(dashboardData.satellite).map(([key, data], index) => {
                 const titles = {
                   ndvi: 'NDVI (Vegetation Health)',
                   landSurfaceTemp: 'Land Surface Temperature',
@@ -726,6 +533,12 @@ const Dashboard = () => {
                 </button>
               </div>
 
+              {!dashboardData.weather ? (
+                <div className="text-center py-8 text-gray-400">
+                  <FaCloud className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Data cuaca belum tersedia untuk wilayah ini.</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-2 gap-4">
                 {[
                   {
@@ -784,14 +597,17 @@ const Dashboard = () => {
                   </div>
                 ))}
               </div>
+              )}
 
+              {dashboardData.weather && (
               <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">Today's Weather Summary</h4>
                 <p className="text-sm text-blue-800">
-                  Temperature optimal for crop growth. Light rainfall expected in afternoon. 
+                  Temperature optimal for crop growth. Light rainfall expected in afternoon.
                   UV protection recommended for field workers. Wind conditions favorable for spraying activities.
                 </p>
               </div>
+              )}
             </motion.div>
 
             {/* System Status & Performance */}

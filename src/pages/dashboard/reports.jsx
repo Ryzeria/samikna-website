@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, useAuth } from '../../contexts/AuthContext';
 
 const ReportsPage = () => {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('30');
   const [reportData, setReportData] = useState(null);
@@ -18,20 +18,12 @@ const ReportsPage = () => {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('samikna_user') || sessionStorage.getItem('samikna_user');
-    if (userData) {
-      try {
-        const parsed = JSON.parse(userData);
-        setUser(parsed);
-        generateReportData(parsed);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        setLoading(false);
-      }
+    if (user) {
+      generateReportData(user);
     } else {
       setLoading(false);
     }
-  }, [dateRange]);
+  }, [user, dateRange]);
 
   const generateReportData = async (userData) => {
     if (!userData) return;
@@ -264,18 +256,9 @@ const ReportsPage = () => {
         }
       ],
       charts: {
-        ndviTrend: Array.from({length: 30}, (_, i) => ({
-          date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          value: 0.6 + Math.random() * 0.2
-        })),
-        temperatureTrend: Array.from({length: 30}, (_, i) => ({
-          date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          value: 26 + Math.random() * 8
-        })),
-        rainfallTrend: Array.from({length: 30}, (_, i) => ({
-          date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          value: Math.random() * 50
-        }))
+        ndviTrend: [],
+        temperatureTrend: [],
+        rainfallTrend: []
       }
     });
   };

@@ -11,14 +11,14 @@ import {
   FaWheat, FaChartLine, FaBrain, FaTractor, FaGlobe
 } from 'react-icons/fa';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, useAuth } from '../../contexts/AuthContext';
 
 const ChatbotPage = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [user, setUser] = useState(null);
   const [chatSession, setChatSession] = useState('general');
   const [selectedModel, setSelectedModel] = useState('advanced');
   const [chatHistory, setChatHistory] = useState([]);
@@ -27,12 +27,7 @@ const ChatbotPage = () => {
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    const userData = localStorage.getItem('samikna_user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-
-    // Load chat history
+    // Load chat history (non-sensitive UI preference — localStorage is appropriate)
     const savedHistory = localStorage.getItem('samikna_chat_history');
     if (savedHistory) {
       setChatHistory(JSON.parse(savedHistory));
@@ -71,7 +66,7 @@ Saya adalah asisten AI canggih yang khusus dirancang untuk membantu dalam manaje
 • Manajemen inventori cerdas
 • Performance monitoring
 
-Saya siap membantu analisis untuk wilayah ${userData ? JSON.parse(userData).kabupaten : 'Anda'}. Silakan ajukan pertanyaan atau pilih topik di bawah!`,
+Saya siap membantu analisis untuk wilayah ${user?.kabupaten || 'Anda'}. Silakan ajukan pertanyaan atau pilih topik di bawah!`,
         timestamp: new Date(),
         suggestions: [
           'Analisis NDVI terbaru untuk lahan padi',
@@ -83,7 +78,7 @@ Saya siap membantu analisis untuk wilayah ${userData ? JSON.parse(userData).kabu
         ]
       }
     ]);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     scrollToBottom();
@@ -272,7 +267,7 @@ Atau gunakan quick responses di bawah untuk memulai konsultasi!`,
         session: chatSession,
         model: selectedModel,
         actions: response.actions || [],
-        confidence: Math.floor(Math.random() * 15) + 85, // 85-99% confidence
+        confidence: response.confidence ?? null,
         sources: [
           'Google Earth Engine',
           'BMKG Weather API',
@@ -585,8 +580,8 @@ Silakan ajukan pertanyaan baru tentang:
                     <div className="px-4 py-3 bg-white rounded-2xl border border-gray-200">
                       <div className="flex gap-1">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}} />
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.1s]" />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
                       </div>
                       <p className="text-xs text-gray-500 mt-2">
                         {selectedModel === 'expert' ? 'Analyzing complex patterns...' : 
@@ -639,8 +634,7 @@ Silakan ajukan pertanyaan baru tentang:
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Konsultasikan analisis satelit, interpretasi data cuaca, strategi pertanian..."
-                    className="w-full px-4 pt-7 pb-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-all text-sm"
-                    style={{ minHeight: '60px', maxHeight: '120px' }}
+                    className="w-full px-4 pt-7 pb-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-all text-sm min-h-[60px] max-h-[120px]"
                   />
                   
                   <div className="absolute bottom-2 right-2 flex items-center gap-2 text-xs text-gray-400">
@@ -681,8 +675,8 @@ Silakan ajukan pertanyaan baru tentang:
                   <span className="text-sm">Mendengarkan pertanyaan...</span>
                   <div className="flex gap-1 ml-2">
                     <div className="w-1 h-4 bg-red-400 animate-pulse" />
-                    <div className="w-1 h-3 bg-red-400 animate-pulse" style={{animationDelay: '0.1s'}} />
-                    <div className="w-1 h-5 bg-red-400 animate-pulse" style={{animationDelay: '0.2s'}} />
+                    <div className="w-1 h-3 bg-red-400 animate-pulse [animation-delay:0.1s]" />
+                    <div className="w-1 h-5 bg-red-400 animate-pulse [animation-delay:0.2s]" />
                   </div>
                 </motion.div>
               )}

@@ -1,4 +1,8 @@
 /** @type {import('next').NextConfig} */
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+});
 
 // Deployment Configuration
 const isStaticExport = process.env.DEPLOY_TARGET === 'static';
@@ -20,31 +24,13 @@ const nextConfig = {
     distDir: 'out',
   }),
 
-  // Environment variables (available on both client and server)
+  // Public environment variables (available on client and server)
+  // IMPORTANT: Never put secrets (DB credentials, JWT_SECRET) here — they would be bundled into client JS
   env: {
     CUSTOM_KEY: isProduction ? 'samikna-production' : 'samikna-development',
-    
-    // For static export, these won't be used for API routes
-    // Instead, point to external API server
-    DB_HOST: process.env.DB_HOST || 'srv566.hstgr.io',
-    DB_PORT: process.env.DB_PORT || '3306',
-    DB_NAME: process.env.DB_NAME || 'u722506862_samikna',
-    DB_USER: process.env.DB_USER || 'u722506862_samikna',
-    DB_PASS: process.env.DB_PASS || 'S@m1Kn4!',
-    
-    // API endpoint for static builds
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ||
       (isProduction ? 'https://samikna-api.vercel.app' : 'http://localhost:3000'),
-    
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://samikna.id',
-    JWT_SECRET: process.env.JWT_SECRET || 'samikna-jwt-secret-2024',
-  },
-
-  // Public environment variables (accessible in browser)
-  publicRuntimeConfig: {
-    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://samikna.id',
-    apiUrl: process.env.NEXT_PUBLIC_API_URL || 
-      (isProduction ? 'https://samikna-api.vercel.app' : 'http://localhost:3000'),
   },
 
   // Headers configuration (only works with server-side rendering)
@@ -64,7 +50,7 @@ const nextConfig = {
             },
             {
               key: 'Access-Control-Allow-Headers',
-              value: 'Content-Type, Authorization',
+              value: 'Content-Type, Authorization, X-CSRF-Token',
             },
           ],
         },
@@ -162,9 +148,6 @@ const nextConfig = {
     optimizeCss: true,
     scrollRestoration: true,
     // Remove features that don't work with static export
-    ...(!isStaticExport && {
-      instrumentationHook: true,
-    }),
   },
 
   // Compiler options
@@ -221,4 +204,4 @@ const nextConfig = {
   }),
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

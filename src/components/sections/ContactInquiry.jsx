@@ -33,20 +33,27 @@ const ContactInquiry = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitStatus('success');
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        company: '',
-        inquiryType: 'product',
-        message: ''
+    setSubmitStatus(null);
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-    }, 2000);
+      const json = await res.json();
+
+      if (res.ok && json.success) {
+        setSubmitStatus('success');
+        setFormData({ name: '', email: '', phone: '', company: '', inquiryType: 'product', message: '' });
+      } else {
+        setSubmitStatus(json.error || 'Gagal mengirim pesan. Silakan coba lagi.');
+      }
+    } catch {
+      setSubmitStatus('Terjadi kesalahan koneksi. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const contactInfo = [
@@ -304,7 +311,7 @@ const ContactInquiry = () => {
                 )}
               </motion.button>
 
-              {/* Success Message */}
+              {/* Status Messages */}
               {submitStatus === 'success' && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -312,6 +319,15 @@ const ContactInquiry = () => {
                   className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg"
                 >
                   ✅ Pesan berhasil dikirim! Tim kami akan menghubungi Anda dalam 24 jam.
+                </motion.div>
+              )}
+              {submitStatus && submitStatus !== 'success' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg"
+                >
+                  ❌ {submitStatus}
                 </motion.div>
               )}
             </form>
