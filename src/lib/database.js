@@ -4,33 +4,48 @@
 import mysql from 'mysql2/promise';
 
 // Enhanced MariaDB Configuration for SAMIKNA Platform
-if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASS || !process.env.DB_NAME) {
-  throw new Error('Database environment variables (DB_HOST, DB_USER, DB_PASS, DB_NAME) are required but not set.');
-}
+// NOTE: env check is done lazily inside connectDB() to avoid module-level crash
+// on Vercel when env vars might not be resolved at import time.
 
-const dbConfig = {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  ssl: false,
-  connectTimeout: 30000,
-  charset: 'utf8mb4',
-  supportBigNumbers: true,
-  bigNumberStrings: false,
-  dateStrings: false,
-  debug: false,
-  multipleStatements: false,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000,
-  typeCast: function (field, next) {
-    if (field.type === 'TINY' && field.length === 1) {
-      return (field.string() === '1');
-    }
-    return next();
+function getDbConfig() {
+  const host = process.env.DB_HOST;
+  const user = process.env.DB_USER;
+  const pass = process.env.DB_PASS;
+  const name = process.env.DB_NAME;
+
+  if (!host || !user || !pass || !name) {
+    throw new Error(
+      `Database env vars missing: DB_HOST=${host ? '✓' : '✗'} DB_USER=${user ? '✓' : '✗'} DB_PASS=${pass ? '✓' : '✗'} DB_NAME=${name ? '✓' : '✗'}`
+    );
   }
-};
+
+  return {
+    host,
+    port: parseInt(process.env.DB_PORT) || 3306,
+    user,
+    password: pass,
+    database: name,
+    // Hostinger allows SSL for remote connections — use 'preferred' so it works
+    // whether SSL is required or not.
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+    // Must stay well under Vercel's 10s function timeout.
+    connectTimeout: 8000,
+    charset: 'utf8mb4',
+    supportBigNumbers: true,
+    bigNumberStrings: false,
+    dateStrings: false,
+    debug: false,
+    multipleStatements: false,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 5000,
+    typeCast: function (field, next) {
+      if (field.type === 'TINY' && field.length === 1) {
+        return (field.string() === '1');
+      }
+      return next();
+    },
+  };
+}
 
 // Singleton pool — created once synchronously, connections acquired lazily.
 // mysql.createPool() is synchronous and never throws; connections are made on demand.
@@ -39,7 +54,7 @@ let pool = null;
 export function createPool() {
   if (!pool) {
     pool = mysql.createPool({
-      ...dbConfig,
+      ...getDbConfig(),
       connectionLimit: 5,
       waitForConnections: true,
       queueLimit: 30,
